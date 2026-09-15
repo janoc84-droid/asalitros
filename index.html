@@ -134,6 +134,9 @@
   }
   .row:first-of-type{ border-top:none; }
   .field{ display:flex; flex-direction:column; gap:4px; }
+  .name-with-icon{ display:flex; align-items:center; gap:8px; }
+  .name-with-icon input{ flex:1; }
+  .food-icon{ font-size:1.35rem; flex:none; width:1.4em; text-align:center; line-height:1; }
   .field label{ font-size:.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.6px; }
   .field.grow{ flex:1 1 160px; }
   .field.num{ width:78px; }
@@ -705,6 +708,66 @@
     return m.kg||0;
   }
 
+  // detecta un icono segun palabras clave en el nombre que se va escribiendo,
+  // para reconocer de un vistazo que es cada corte/producto (vacuno, pollo,
+  // longaniza, etc.) sin tener que leer el texto completo.
+  var FOOD_ICONS = [
+    // carnes y cortes
+    [/vacuno|\bres\b|buey|\bvaca\b|malaya|posta|filete|lomo|plateada|asiento|huachalomo|picana|asado\s*de\s*tira|entra[ñn]a|choclillo|sobrecostilla|tapapecho|abastero|punta\s*paleta/i, "🐄"],
+    [/pollo|\bave\b|gallina|pavo|pechuga|muslo|\bala\b|alitas|trutro/i, "🐔"],
+    [/cerdo|chancho|costillar|panceta|pernil|chuleta|tocino/i, "🐖"],
+    [/cordero|oveja/i, "🐑"],
+    [/longaniza|chorizo|salchich|vienesa|prieta|morcilla/i, "🌭"],
+    [/pescado|salm[oó]n|merluza|at[uú]n|reineta|congrio/i, "🐟"],
+    [/camar[oó]n|marisco|macha|chorito|jaiba|ostion|erizo/i, "🦐"],
+    // verduras y vegetales
+    [/verdura|vegetal|lechuga|repollo|acelga|espinaca/i, "🥬"],
+    [/tomate/i, "🍅"],
+    [/cebolla/i, "🧅"],
+    [/\bpalta\b|aguacate/i, "🥑"],
+    [/choclo|ma[íi]z|elote/i, "🌽"],
+    [/\bpapa\b|patata/i, "🥔"],
+    [/zanahoria/i, "🥕"],
+    [/pimiento|piment[oó]n|\baj[ií]\b|morr[oó]n/i, "🫑"],
+    [/pepino/i, "🥒"],
+    [/ensalada/i, "🥗"],
+    // frutas
+    [/\buva\b|uvas/i, "🍇"],
+    [/sand[íi]a/i, "🍉"],
+    [/frutilla|fresa/i, "🍓"],
+    [/manzana/i, "🍎"],
+    [/naranja/i, "🍊"],
+    [/lim[oó]n/i, "🍋"],
+    // panaderia y granos
+    [/\bpan\b|marraqueta|hallulla|pan\s*amasado/i, "🍞"],
+    [/arroz/i, "🍚"],
+    [/fideo|tallarin|pasta/i, "🍝"],
+    // lacteos y huevos
+    [/queso/i, "🧀"],
+    [/\bleche\b/i, "🥛"],
+    [/huevo/i, "🥚"],
+    [/mantequilla|margarina/i, "🧈"],
+    // bebidas
+    [/cerveza/i, "🍺"],
+    [/\bvino\b/i, "🍷"],
+    [/\bagua\b/i, "💧"],
+    [/bebida|\bcoca\b|fanta|sprite|\bjugo\b|gaseosa|n[eé]ctar/i, "🥤"],
+    // condimentos y otros
+    [/carb[oó]n|le[ñn]a/i, "🔥"],
+    [/\bhielo\b/i, "🧊"],
+    [/aceite|oliva/i, "🫒"],
+    [/merk[eé]n|picante|t\.?a\.?b\.?a\.?s\.?c\.?o/i, "🌶️"],
+    [/mayonesa|ketchup|mostaza|salsa|aderezo/i, "🧂"],
+    [/\bsal\b|condimento/i, "🧂"]
+  ];
+  function detectFoodIcon(name){
+    var n = String(name||"");
+    for(var i=0;i<FOOD_ICONS.length;i++){
+      if(FOOD_ICONS[i][0].test(n)) return FOOD_ICONS[i][1];
+    }
+    return "🍽️";
+  }
+
   var meatRowsEl = document.getElementById("meatRows");
   function buildCarnes(){
     meatRowsEl.innerHTML = "";
@@ -720,7 +783,12 @@
         : "";
 
       row.innerHTML =
-        '<div class="field grow"><label>Corte</label><input type="text" data-k="name" value="'+escapeHtml(m.name)+'"></div>' +
+        '<div class="field grow"><label>Corte</label>' +
+          '<div class="name-with-icon">' +
+            '<span class="food-icon">'+detectFoodIcon(m.name)+'</span>' +
+            '<input type="text" data-k="name" value="'+escapeHtml(m.name)+'">' +
+          '</div>' +
+        '</div>' +
         '<div class="field"><label>Se vende por</label>' +
           '<select data-k="unidad">' +
             '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
@@ -739,6 +807,10 @@
           var i2 = +row.dataset.idx, k = inp.dataset.k;
           data.meats[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
           saveData();
+          if(k==="name"){
+            var iconEl = row.querySelector(".food-icon");
+            if(iconEl) iconEl.textContent = detectFoodIcon(inp.value);
+          }
           if(k!=="name") recomputeCarnes();
           renderResumen();
         });
@@ -805,7 +877,12 @@
       row.dataset.idx = i;
       var unidad = e.unidad || "kg";
       row.innerHTML =
-        '<div class="field grow"><label>Producto</label><input type="text" data-k="name" value="'+escapeHtml(e.name)+'"></div>' +
+        '<div class="field grow"><label>Producto</label>' +
+          '<div class="name-with-icon">' +
+            '<span class="food-icon">'+detectFoodIcon(e.name)+'</span>' +
+            '<input type="text" data-k="name" value="'+escapeHtml(e.name)+'">' +
+          '</div>' +
+        '</div>' +
         '<div class="field"><label>Se vende por</label>' +
           '<select data-k="unidad">' +
             '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
@@ -822,6 +899,10 @@
           var i2 = +row.dataset.idx, k = inp.dataset.k;
           data.extras[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
           saveData();
+          if(k==="name"){
+            var iconEl = row.querySelector(".food-icon");
+            if(iconEl) iconEl.textContent = detectFoodIcon(inp.value);
+          }
           recomputeExtras();
           renderResumen();
         });
@@ -920,9 +1001,9 @@
     var chartItems = [];
     getAllPurchasedItems().forEach(function(it){
       var subtotal = it.kg*it.precio;
-      chartItems.push({name:it.name, value:subtotal});
+      chartItems.push({name:it.displayName, value:subtotal});
       var tr = document.createElement("tr");
-      tr.innerHTML = "<td>"+escapeHtml(it.name||"(sin nombre)")+"</td>" +
+      tr.innerHTML = "<td>"+escapeHtml(it.displayName)+"</td>" +
         "<td style='text-align:right'>"+formatQty(it.kg, it.unidad)+"</td>" +
         "<td style='text-align:right'>"+money(it.precio)+(it.unidad==="un"?" c/u":"/kg")+"</td>" +
         "<td class='money' style='text-align:right'>"+money(subtotal)+"</td>";
@@ -976,8 +1057,12 @@
   // "un" = se compra por unidad (ej. longaniza artesanal que se vende por pieza).
   function getAllPurchasedItems(){
     var items = [];
-    data.meats.forEach(function(m){ items.push({name:m.name, kg:m.kg, precio:m.precio, unidad:m.unidad||"kg"}); });
-    data.extras.forEach(function(e){ items.push({name:e.name, kg:e.cantidad, precio:e.precio, unidad:e.unidad||"kg"}); });
+    data.meats.forEach(function(m){
+      items.push({name:m.name, displayName:detectFoodIcon(m.name)+" "+(m.name||"(sin nombre)"), kg:m.kg, precio:m.precio, unidad:m.unidad||"kg"});
+    });
+    data.extras.forEach(function(e){
+      items.push({name:e.name, displayName:detectFoodIcon(e.name)+" "+(e.name||"(sin nombre)"), kg:e.cantidad, precio:e.precio, unidad:e.unidad||"kg"});
+    });
     return items;
   }
 
@@ -1004,7 +1089,7 @@
       var qty = perCuota*cuotasMultiplier;
       var valor = qty*it.precio;
       var tr = document.createElement("tr");
-      tr.innerHTML = "<td>"+escapeHtml(it.name||"(sin nombre)")+"</td>" +
+      tr.innerHTML = "<td>"+escapeHtml(it.displayName)+"</td>" +
         "<td style='text-align:right'>"+formatQty(qty, it.unidad)+"</td>" +
         "<td class='money' style='text-align:right'>"+money(valor)+"</td>";
       body.appendChild(tr);
@@ -1099,7 +1184,7 @@
     renderItemsTable("famShareItemsBody", cuotas, t);
     var chartItems = getAllPurchasedItems().map(function(it){
       var perCuota = t.cuotas>0 ? it.kg/t.cuotas : 0;
-      return { name: it.name, value: (perCuota*cuotas)*it.precio };
+      return { name: it.displayName, value: (perCuota*cuotas)*it.precio };
     });
     renderBarChart("famShareChart", chartItems);
 
