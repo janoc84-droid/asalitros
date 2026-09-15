@@ -276,9 +276,46 @@
     background:none; border:1px solid var(--border); color:var(--bad);
     padding:8px 14px; border-radius:8px; font-size:.8rem; cursor:pointer; margin-top:10px;
   }
+
+  #gateOverlay{
+    position:fixed; inset:0; z-index:100;
+    background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  #gateOverlay[hidden]{ display:none; }
+  .gate-box{
+    width:100%; max-width:320px; text-align:center;
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:28px 22px; display:flex; flex-direction:column; gap:12px;
+  }
+  .gate-brand{ font-family:Georgia,serif; font-size:1.3rem; color:var(--gold); }
+  .gate-label{ font-size:.85rem; color:var(--text-dim); margin:0; }
+  .gate-box input{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:11px; font-size:1.1rem; text-align:center; width:100%;
+    letter-spacing:3px;
+  }
+  .gate-box input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .gate-error{ color:var(--bad); font-size:.8rem; margin:0; }
 </style>
 </head>
 <body>
+
+<!-- candado simple: solo evita que alguien entre de casualidad con el link
+     publico. No es seguridad real (el codigo corre en el navegador de quien
+     entre), pero alcanza para uso familiar normal. -->
+<div id="gateOverlay">
+  <div class="gate-box">
+    <div class="gate-brand">🔥 Asalitros</div>
+    <p class="gate-label">Escribe la clave para entrar</p>
+    <input type="password" id="gateInput" inputmode="numeric" autocomplete="off" placeholder="Clave">
+    <button type="button" id="gateBtn" class="add-btn">Entrar</button>
+    <p class="gate-error" id="gateError" hidden>Clave incorrecta, intenta de nuevo.</p>
+  </div>
+</div>
+
+<div id="appRoot" hidden>
 
 <header>
   <div class="wrap">
@@ -419,6 +456,8 @@
     <tbody id="famShareItemsBody"></tbody>
   </table>
 </div>
+
+</div><!-- /appRoot -->
 
 <script src="vendor/html2canvas.min.js"></script>
 <script>
@@ -1229,6 +1268,70 @@
   }
   renderAll();
   renderHistory();
+})();
+</script>
+
+<script>
+(function(){
+  "use strict";
+  // Candado simple del lado del navegador: evita que alguien entre de
+  // casualidad con el link, pero NO es seguridad real -el codigo corre en
+  // el navegador de quien entre, asi que alguien con conocimientos tecnicos
+  // podria revisar el codigo fuente y evitarlo. Para uso familiar normal
+  // alcanza. La clave no queda en texto plano: se compara su huella SHA-256.
+  var GATE_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
+  var GATE_KEY = "asalitrosGateOk";
+  var overlay = document.getElementById("gateOverlay");
+  var appRoot = document.getElementById("appRoot");
+  var input = document.getElementById("gateInput");
+  var btn = document.getElementById("gateBtn");
+  var errorEl = document.getElementById("gateError");
+
+  function unlock(){
+    overlay.hidden = true;
+    appRoot.hidden = false;
+  }
+
+  var yaDesbloqueado = false;
+  try{ yaDesbloqueado = localStorage.getItem(GATE_KEY) === "1"; }catch(e){}
+  if(yaDesbloqueado){
+    unlock();
+  } else {
+    input.focus();
+  }
+
+  async function sha256Hex(texto){
+    try{
+      var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+      return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+    }catch(e){
+      return null;
+    }
+  }
+
+  async function intentarEntrar(){
+    var valor = input.value;
+    if(!valor) return;
+    var hash = await sha256Hex(valor);
+    if(hash===null){
+      errorEl.textContent = "Este navegador no puede verificar la clave. Prueba con otro.";
+      errorEl.hidden = false;
+      return;
+    }
+    if(hash===GATE_HASH){
+      try{ localStorage.setItem(GATE_KEY, "1"); }catch(e){}
+      errorEl.hidden = true;
+      unlock();
+    }else{
+      errorEl.textContent = "Clave incorrecta, intenta de nuevo.";
+      errorEl.hidden = false;
+      input.value = "";
+      input.focus();
+    }
+  }
+
+  btn.addEventListener("click", intentarEntrar);
+  input.addEventListener("keydown", function(e){ if(e.key==="Enter") intentarEntrar(); });
 })();
 </script>
 </body>
