@@ -1364,8 +1364,9 @@
   // el navegador de quien entre, asi que alguien con conocimientos tecnicos
   // podria revisar el codigo fuente y evitarlo. Para uso familiar normal
   // alcanza. La clave no queda en texto plano: se compara su huella SHA-256.
+  // A proposito NO se recuerda el desbloqueo entre visitas (sin localStorage
+  // aqui): la clave se pide siempre que se abre la pagina, cada vez.
   var GATE_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
-  var GATE_KEY = "asalitrosGateOk";
   var overlay = document.getElementById("gateOverlay");
   var appRoot = document.getElementById("appRoot");
   var input = document.getElementById("gateInput");
@@ -1377,13 +1378,7 @@
     appRoot.hidden = false;
   }
 
-  var yaDesbloqueado = false;
-  try{ yaDesbloqueado = localStorage.getItem(GATE_KEY) === "1"; }catch(e){}
-  if(yaDesbloqueado){
-    unlock();
-  } else {
-    input.focus();
-  }
+  input.focus();
 
   async function sha256Hex(texto){
     try{
@@ -1404,7 +1399,6 @@
       return;
     }
     if(hash===GATE_HASH){
-      try{ localStorage.setItem(GATE_KEY, "1"); }catch(e){}
       errorEl.hidden = true;
       unlock();
     }else{
