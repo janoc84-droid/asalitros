@@ -1,0 +1,1235 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Asalitros</title>
+<style>
+  /* modo claro (por defecto) */
+  :root{
+    --bg:#faf7f3;
+    --surface:#ffffff;
+    --surface-2:#f2ece1;
+    --surface-3:#e8ddc9;
+    --border:#ddd0ba;
+    --text:#2a2016;
+    --text-dim:#8a7a63;
+    --accent:#cf4e1c;
+    --accent-ink:#fff6ec;
+    --gold:#a85d00;
+    --ok:#3f8f45;
+    --bad:#c23b46;
+  }
+  /* modo oscuro: sigue el tema del sistema, salvo que se elija modo claro a mano */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#171310;
+      --surface:#211b16;
+      --surface-2:#2b241d;
+      --surface-3:#352c22;
+      --border:#3d3327;
+      --text:#f3ece2;
+      --text-dim:#a89a86;
+      --accent:#e8622c;
+      --accent-ink:#2a1206;
+      --gold:#f2b134;
+      --ok:#7cb87a;
+      --bad:#e2707a;
+    }
+  }
+  /* boton de tema: fuerza modo oscuro aunque el sistema este en claro */
+  :root[data-theme="dark"]{
+    --bg:#171310;
+    --surface:#211b16;
+    --surface-2:#2b241d;
+    --surface-3:#352c22;
+    --border:#3d3327;
+    --text:#f3ece2;
+    --text-dim:#a89a86;
+    --accent:#e8622c;
+    --accent-ink:#2a1206;
+    --gold:#f2b134;
+    --ok:#7cb87a;
+    --bad:#e2707a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",Arial,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    padding-bottom:48px;
+    transition:background-color .2s ease, color .2s ease;
+    overflow-x:hidden;
+  }
+  h1,h2,h3{
+    font-family:Georgia,"Noto Serif","Times New Roman",serif;
+    text-wrap:balance;
+    margin:0;
+  }
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding-inline:16px;
+  }
+  /* ---- barra superior fija ---- */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(180deg, var(--bg) 70%, transparent);
+    padding-block:10px 4px;
+    border-bottom:1px solid var(--border);
+  }
+  .brand{
+    display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    flex-wrap:wrap;
+  }
+  .brand h1{ font-size:1.35rem; color:var(--text); letter-spacing:.2px; }
+  .brand-right{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .brand .tag{ font-size:.72rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.2px; }
+  .theme-btn{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+    width:32px; height:32px; border-radius:999px; font-size:.95rem;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
+  }
+  .stat-bar{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    margin-top:10px;
+  }
+  .stat{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:8px 12px;
+  }
+  .stat .k{ font-size:.68rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); }
+  .stat .v{ font-size:1.3rem; font-weight:700; color:var(--gold); font-variant-numeric:tabular-nums; }
+
+  main{ padding-top:18px; display:flex; flex-direction:column; gap:22px; }
+
+  section.card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px;
+  }
+  .sec-head{
+    display:flex; align-items:center; gap:10px; margin-bottom:4px;
+  }
+  .sec-num{
+    width:26px; height:26px; border-radius:50%;
+    background:var(--accent); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:.85rem; flex:none;
+  }
+  .sec-head h2{ font-size:1.08rem; color:var(--text); }
+  .sec-hint{ font-size:.8rem; color:var(--text-dim); margin:2px 0 14px 36px; }
+  /* como .sec-hint, pero SI se muestra al capturar la imagen (explica de donde
+     sale el total: no se oculta como el resto de las instrucciones de la UI). */
+  .share-note{ font-size:.8rem; color:var(--text-dim); margin:0; }
+
+  .row{
+    display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap;
+    padding:10px 0; border-top:1px solid var(--border);
+  }
+  .row:first-of-type{ border-top:none; }
+  .field{ display:flex; flex-direction:column; gap:4px; }
+  .field label{ font-size:.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.6px; }
+  .field.grow{ flex:1 1 160px; }
+  .field.num{ width:78px; }
+  .field.money{ width:110px; }
+
+  input[type=text],input[type=number],select{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:8px;
+    padding:9px 10px;
+    font-size:.95rem;
+    width:100%;
+    font-variant-numeric:tabular-nums;
+  }
+  input:focus,select:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  input[readonly]{ color:var(--gold); background:var(--surface-3); font-weight:700; }
+
+  .chip{
+    background:var(--surface-3);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:8px 14px;
+    font-weight:700;
+    color:var(--gold);
+    font-variant-numeric:tabular-nums;
+    min-width:52px;
+    text-align:center;
+  }
+  .del{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    width:34px; height:34px; border-radius:8px;
+    font-size:1rem; line-height:1;
+    cursor:pointer;
+  }
+  .del:hover{ color:var(--bad); border-color:var(--bad); }
+
+  .add-btn{
+    margin-top:12px;
+    background:var(--surface-2);
+    border:1px dashed var(--border);
+    color:var(--accent);
+    padding:10px 14px;
+    border-radius:9px;
+    font-weight:600;
+    cursor:pointer;
+    width:100%;
+  }
+  .add-btn:hover{ border-color:var(--accent); background:var(--surface-3); }
+
+  .totals-line{
+    display:flex; flex-wrap:wrap; gap:16px;
+    margin-top:14px; padding-top:12px; border-top:1px solid var(--border);
+    font-size:.85rem; color:var(--text-dim);
+  }
+  .totals-line b{ color:var(--text); font-variant-numeric:tabular-nums; }
+
+  .note{ font-size:.8rem; margin-top:10px; padding:8px 10px; border-radius:8px; background:var(--surface-2); }
+  .note.ok{ color:var(--ok); }
+  .note.bad{ color:var(--bad); }
+
+  .big-total{
+    display:flex; justify-content:space-between; align-items:baseline;
+    background:var(--surface-3); border:1px solid var(--border);
+    border-radius:10px; padding:14px 16px; margin-top:14px;
+  }
+  .big-total .label{ font-family:Georgia,serif; font-size:1rem; }
+  .big-total .value{ font-size:1.7rem; font-weight:700; color:var(--gold); font-variant-numeric:tabular-nums; }
+
+  /* nombre y valor van arriba, en su propia linea (nunca se cortan); la barra
+     ocupa todo el ancho de la fila, bien separada del texto. */
+  .bar-chart{ display:flex; flex-direction:column; gap:14px; margin:14px 0; }
+  .bar-row{ display:flex; flex-direction:column; gap:5px; }
+  .bar-head{
+    display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  }
+  .bar-label{
+    font-size:.88rem; font-weight:600; color:var(--text);
+    overflow-wrap:anywhere;
+  }
+  .bar-track{ background:var(--surface-2); border-radius:7px; height:18px; overflow:hidden; width:100%; }
+  .bar-fill{ background:var(--accent); height:100%; border-radius:7px; }
+  .bar-value{
+    font-size:.85rem; font-weight:700; color:var(--gold);
+    font-variant-numeric:tabular-nums; white-space:nowrap; flex:none;
+  }
+
+  .capture-card{ background:var(--surface); }
+  .capture-brand{
+    display:none;
+    font-family:Georgia,serif; font-size:1rem; color:var(--gold);
+    letter-spacing:.4px; margin-bottom:10px;
+  }
+  .capture-card.capturing .capture-brand{ display:block; }
+  .capture-card.capturing .sec-hint{ display:none; }
+
+  .resumen-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px; margin-bottom:16px;
+  }
+  .resumen-grid .stat .v{ font-size:1.15rem; }
+
+  table.fam-table{ width:100%; border-collapse:collapse; font-size:.9rem; }
+  table.fam-table th{
+    text-align:left; font-size:.68rem; text-transform:uppercase; letter-spacing:.6px;
+    color:var(--text-dim); padding:6px 8px; border-bottom:1px solid var(--border);
+  }
+  table.fam-table td{ padding:8px; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums; }
+  table.fam-table td.money{ color:var(--gold); font-weight:700; text-align:right; }
+  table.fam-table td.center{ text-align:center; }
+  .table-wrap{ overflow-x:auto; }
+  tfoot td{ font-weight:700; color:var(--text); border-top:2px solid var(--border); border-bottom:none; }
+
+  table.fam-table tbody tr{ cursor:pointer; }
+  table.fam-table tbody tr:hover{ background:var(--surface-2); }
+  table.fam-table tbody tr:active{ background:var(--surface-3); }
+
+  /* plantilla para generar la imagen de UNA familia: nunca se muestra en pantalla,
+     se dibuja fuera del viewport solo para que html2canvas la capture. */
+  .offscreen-capture{
+    position:absolute; left:-9999px; top:0; width:360px;
+    border-radius:14px; border:1px solid var(--border); padding:16px;
+  }
+  .offscreen-capture h3{ font-size:1.15rem; color:var(--text); margin-bottom:12px; }
+
+  .share-fam-btn{
+    background:none; border:none; color:var(--accent); font-size:1.1rem;
+    width:34px; height:34px; border-radius:8px; cursor:pointer; line-height:1;
+  }
+  .share-fam-btn:disabled{ opacity:.5; }
+  table.fam-table td.share-cell{ text-align:center; padding:4px 2px; }
+
+  footer{
+    text-align:center; color:var(--text-dim); font-size:.76rem;
+    margin-top:26px; padding-top:14px; border-top:1px solid var(--border);
+  }
+  .reset-btn{
+    background:none; border:1px solid var(--border); color:var(--bad);
+    padding:8px 14px; border-radius:8px; font-size:.8rem; cursor:pointer; margin-top:10px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <h1>🔥 Asalitros</h1>
+      <div class="brand-right">
+        <span class="tag">Compras y reparto por familia</span>
+        <button id="themeToggle" class="theme-btn" type="button" title="Cambiar tema">🌙</button>
+      </div>
+    </div>
+    <div class="stat-bar">
+      <div class="stat"><div class="k">Total compras</div><div class="v" id="topTotal">$ 0</div></div>
+      <div class="stat"><div class="k">Valor por cuota</div><div class="v" id="topCuota">$ 0</div></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- 1. FAMILIAS -->
+  <section class="card">
+    <div class="sec-head"><div class="sec-num">1</div><h2>Familias</h2></div>
+    <p class="sec-hint">Cada niño paga media cuota (2 niños = 1 cuota entera).</p>
+    <div id="famRows"></div>
+    <button class="add-btn" id="addFam" type="button">+ Agregar familia</button>
+    <div class="totals-line" id="famTotals"></div>
+  </section>
+
+  <!-- 2. CARNES -->
+  <section class="card">
+    <div class="sec-head"><div class="sec-num">2</div><h2>Cálculo de carnes</h2></div>
+    <p class="sec-hint">Ingresa los kilos que compraste de cada corte y el precio por kilo (lo que te dicen en el supermercado). La app calcula solo cuántos gramos por persona está quedando.</p>
+    <div id="meatRows"></div>
+    <button class="add-btn" id="addMeat" type="button">+ Agregar corte</button>
+    <div class="note" id="meatCheck"></div>
+    <div class="totals-line" id="meatTotals"></div>
+  </section>
+
+  <!-- 3. OTRAS COMPRAS -->
+  <section class="card">
+    <div class="sec-head"><div class="sec-num">3</div><h2>Otras compras</h2></div>
+    <p class="sec-hint">Longaniza, pan, carbón, bebidas… lo que falte.</p>
+    <div id="extraRows"></div>
+    <button class="add-btn" id="addExtra" type="button">+ Agregar producto</button>
+    <div class="totals-line" id="extraTotals"></div>
+  </section>
+
+  <!-- 4. RESUMEN -->
+  <!-- 4. RESUMEN DE COMPRAS: simple, enfocado en el total gastado (no en personas) -->
+  <section class="card">
+    <div id="resumenCapture" class="capture-card">
+      <div class="capture-brand">🔥 Asalitros</div>
+      <div class="sec-head"><div class="sec-num">4</div><h2>Resumen de compras</h2></div>
+      <p class="sec-hint">Todo lo que se compró y cuánto costó en total.</p>
+
+      <div class="bar-chart" id="comprasChart"></div>
+
+      <div class="table-wrap">
+        <table class="fam-table">
+          <thead>
+            <tr><th>Producto</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Precio</th><th style="text-align:right">Subtotal</th></tr>
+          </thead>
+          <tbody id="comprasResumenBody"></tbody>
+        </table>
+      </div>
+
+      <div class="big-total">
+        <span class="label">Total gastado</span>
+        <span class="value" id="rTotal">$ 0</span>
+      </div>
+    </div>
+
+    <button class="add-btn" id="shareBtn" type="button">📤 Compartir resumen (imagen)</button>
+  </section>
+
+  <!-- 5. PAGO POR FAMILIA -->
+  <section class="card">
+    <div class="sec-head"><div class="sec-num">5</div><h2>Pago por familia</h2></div>
+    <p class="sec-hint">Cuánto le toca pagar a cada familia según sus cuotas. Cada adulto = 1 cuota, cada niño = 0.5 cuota (2 niños = 1 cuota entera). Ejemplo: 2 adultos + 1 niño = 2.5 cuotas.</p>
+
+    <div class="resumen-grid">
+      <div class="stat"><div class="k">Total personas</div><div class="v" id="rPersonas">0</div></div>
+      <div class="stat"><div class="k">Total cuotas</div><div class="v" id="rCuotas">0</div></div>
+      <div class="stat"><div class="k">Valor por adulto</div><div class="v" id="rAdulto">$ 0</div></div>
+      <div class="stat"><div class="k">Valor por niño</div><div class="v" id="rNino">$ 0</div></div>
+    </div>
+
+    <div class="table-wrap" style="margin-top:16px;">
+      <table class="fam-table" id="famTable">
+        <thead>
+          <tr><th>Familia</th><th class="center">Cuotas</th><th style="text-align:right">Total a pagar</th><th></th></tr>
+        </thead>
+        <tbody id="rFamBody"></tbody>
+        <tfoot>
+          <tr><td>Totales</td><td class="center" id="rFamCuotasTot">0</td><td class="money" id="rFamTotalTot">$ 0</td><td></td></tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="sec-hint" style="margin:8px 0 0;">Toca el 📤 de una familia para mandarle solo su parte (incluye su detalle por producto).</p>
+    <div class="note" id="verifyNote"></div>
+  </section>
+
+  <!-- 6. HISTORIAL -->
+  <section class="card">
+    <div class="sec-head"><div class="sec-num">6</div><h2>Historial</h2></div>
+    <p class="sec-hint">Guarda esta cotización para poder verla después, sin perder lo que tengas mientras armas la siguiente.</p>
+    <button class="add-btn" id="saveHistoryBtn" type="button">💾 Guardar esta cotización</button>
+    <div id="historyList" style="margin-top:14px;"></div>
+  </section>
+
+  <footer>
+    Los datos quedan guardados en esta tablet automáticamente.
+    <br>
+    <button class="reset-btn" id="resetBtn" type="button">Reiniciar todos los datos</button>
+  </footer>
+</main>
+
+<!-- plantilla oculta: se llena con los datos de UNA familia y se captura como imagen.
+     nunca se muestra en pantalla (ver .offscreen-capture), asi que no hay ningun
+     popup que pueda quedar trabado. -->
+<div id="famShareCapture" class="capture-card offscreen-capture" aria-hidden="true">
+  <div class="capture-brand">🔥 Asalitros</div>
+  <h3 id="famShareName">Familia</h3>
+  <div class="resumen-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="stat"><div class="k">Adultos</div><div class="v" id="famShareAdultos">0</div></div>
+    <div class="stat"><div class="k">Niños</div><div class="v" id="famShareNinos">0</div></div>
+    <div class="stat"><div class="k">Cuotas</div><div class="v" id="famShareCuotas">0</div></div>
+  </div>
+  <p class="share-note" id="famShareExplain" style="margin:8px 0 0;"></p>
+  <div class="big-total">
+    <span class="label">Total a pagar</span>
+    <span class="value" id="famShareTotal">$ 0</span>
+  </div>
+  <p class="share-note" id="famShareMath" style="margin:6px 0 0; text-align:right;"></p>
+  <div class="bar-chart" id="famShareChart" style="margin-top:12px;"></div>
+  <table class="fam-table" style="margin-top:12px;">
+    <thead><tr><th>Le corresponde</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Valor</th></tr></thead>
+    <tbody id="famShareItemsBody"></tbody>
+  </table>
+</div>
+
+<script src="vendor/html2canvas.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  // IMPORTANTE: si el formato de los datos cambia alguna vez y hay que subir esta
+  // clave (ej. a "asadoCalcData_v3"), agrega la clave vieja a LEGACY_STORE_KEYS y
+  // escribe su conversion en migrateLegacyData(). Nunca cambies STORE_KEY sin eso:
+  // una actualizacion de la app jamas debe borrar lo que la familia ya escribio.
+  var STORE_KEY = "asadoCalcData_v2";
+  var LEGACY_STORE_KEYS = ["asadoCalcData_v1"];
+
+  var defaultData = {
+    families: [
+      {name:"Familia 1", adultos:2, ninos:0},
+      {name:"Familia 2", adultos:2, ninos:0},
+      {name:"Familia 3", adultos:2, ninos:0},
+      {name:"Familia 4", adultos:2, ninos:0},
+      {name:"Familia 5", adultos:2, ninos:0},
+      {name:"Familia 6", adultos:2, ninos:0},
+      {name:"Familia 7", adultos:2, ninos:0}
+    ],
+    meats: [
+      {name:"Vacuno", kg:3.5, precio:0},
+      {name:"Pollo",  kg:2.1, precio:0},
+      {name:"Cerdo",  kg:1.4, precio:0}
+    ],
+    extras: [
+      {name:"Longaniza", cantidad:0, precio:0},
+      {name:"Pan", cantidad:0, precio:0}
+    ]
+  };
+
+  function migrateLegacyData(old){
+    var families = old.families || [];
+    var extras = old.extras || [];
+    var totalPersonasLegacy = 0;
+    families.forEach(function(f){ totalPersonasLegacy += (f.adultos||0) + (f.ninos||0); });
+
+    var meats = (old.meats || []).map(function(m){
+      if(typeof m.kg === "number") return m; // ya viene en el formato nuevo
+      var gramos = typeof m.gramos === "number" ? m.gramos : 0;
+      var kg = totalPersonasLegacy>0 ? (totalPersonasLegacy*gramos/1000) : 0;
+      return { name:m.name, kg:Math.round(kg*100)/100, precio:m.precio||0 };
+    });
+
+    return { families:families, meats:meats, extras:extras };
+  }
+
+  function loadData(){
+    try{
+      var raw = localStorage.getItem(STORE_KEY);
+      if(raw){
+        var parsed = JSON.parse(raw);
+        if(parsed && parsed.families && parsed.meats && parsed.extras) return parsed;
+      }
+    }catch(e){}
+
+    // no hay datos en la clave actual: busca datos de una version anterior de la app
+    // y los recupera, para que actualizar la app nunca borre lo ya ingresado.
+    for(var i=0; i<LEGACY_STORE_KEYS.length; i++){
+      try{
+        var oldRaw = localStorage.getItem(LEGACY_STORE_KEYS[i]);
+        if(!oldRaw) continue;
+        var old = JSON.parse(oldRaw);
+        if(old && old.families && old.extras){
+          var migrated = migrateLegacyData(old);
+          try{
+            localStorage.setItem(STORE_KEY, JSON.stringify(migrated));
+            localStorage.removeItem(LEGACY_STORE_KEYS[i]);
+          }catch(e2){}
+          return migrated;
+        }
+      }catch(e){}
+    }
+
+    return JSON.parse(JSON.stringify(defaultData));
+  }
+
+  var data = loadData();
+
+  // ---------- sincronizacion con la nube (capacidad "db" del artefacto) ----------
+  // localStorage sigue siendo la copia local instantanea (funciona igual aunque
+  // "db" no este disponible); "db" es la copia compartida que permite ver los
+  // mismos datos desde cualquier dispositivo que abra este mismo link.
+  var dbApi = null;
+  var stateDocRef = null;
+  var stateSaveTimer = null;
+  var stateSaveInFlight = false;
+  var stateSaveQueued = false;
+
+  function scheduleStateSave(){
+    if(!stateDocRef) return;
+    stateSaveQueued = true;
+    if(stateSaveTimer) return;
+    stateSaveTimer = setTimeout(flushStateSave, 900);
+  }
+  async function flushStateSave(){
+    stateSaveTimer = null;
+    if(!stateDocRef || stateSaveInFlight){ return; }
+    stateSaveQueued = false;
+    stateSaveInFlight = true;
+    try{ await stateDocRef.set(data); }catch(e){}
+    stateSaveInFlight = false;
+    if(stateSaveQueued) scheduleStateSave();
+  }
+
+  function saveData(){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+    scheduleStateSave();
+  }
+
+  function isRemoteStateValid(remote){
+    return !!(remote && remote.families && remote.meats && remote.extras);
+  }
+
+  (async function initCloudSync(){
+    var db = null;
+    try{ db = await claude.use("db"); }catch(e){}
+    if(!db) return; // sin "db" disponible: la app sigue funcionando solo con localStorage
+    dbApi = db;
+    stateDocRef = db.doc("app/state");
+    try{
+      var snap = await stateDocRef.get();
+      if(snap.exists && isRemoteStateValid(snap.data())){
+        data = snap.data();
+        try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+        renderAll();
+      }else{
+        scheduleStateSave(); // no habia nada guardado en la nube: sube lo local
+      }
+    }catch(e){}
+    stateDocRef.onSnapshot(function(snap){
+      if(stateSaveInFlight || stateSaveQueued) return; // no pisar una edicion en curso
+      if(!snap.exists || !isRemoteStateValid(snap.data())) return;
+      data = snap.data();
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+      renderAll();
+    }, function(){ /* error terminal: sigue funcionando solo con localStorage */ });
+  })();
+
+  function money(n){
+    if(!isFinite(n)) n = 0;
+    return "$ " + Math.round(n).toLocaleString("es-CL");
+  }
+  function num(n, d){
+    d = d===undefined ? 1 : d;
+    if(!isFinite(n)) n = 0;
+    return n.toLocaleString("es-CL", {minimumFractionDigits:d, maximumFractionDigits:d});
+  }
+
+  // Nota de diseño: las filas del DOM se construyen (build) UNA sola vez, y solo
+  // se reconstruyen cuando se agrega/quita una fila. Escribir en un input jamás
+  // reconstruye esa fila: solo actualiza los campos de solo lectura y los totales.
+  // (Reconstruir en cada tecla era el bug: el input perdía el foco y se cerraba
+  // el teclado numerico apenas se tocaba un digito.)
+
+  function totalPersonas(){
+    var t=0,n=0;
+    data.families.forEach(function(f){ t+=f.adultos; n+=f.ninos; });
+    return t+n;
+  }
+  function totalCuotas(){
+    var t=0;
+    data.families.forEach(function(f){ t += f.adultos + f.ninos*0.5; });
+    return t;
+  }
+
+  // ---------- familias ----------
+  var famRowsEl = document.getElementById("famRows");
+  function buildFamilias(){
+    famRowsEl.innerHTML = "";
+    data.families.forEach(function(f, i){
+      var row = document.createElement("div");
+      row.className = "row";
+      row.dataset.idx = i;
+      row.innerHTML =
+        '<div class="field grow">' +
+          '<label>Familia</label>' +
+          '<input type="text" data-k="name" value="'+escapeHtml(f.name)+'">' +
+        '</div>' +
+        '<div class="field num">' +
+          '<label>Adultos</label>' +
+          '<input type="number" min="0" inputmode="numeric" data-k="adultos" value="'+f.adultos+'">' +
+        '</div>' +
+        '<div class="field num">' +
+          '<label>Niños</label>' +
+          '<input type="number" min="0" inputmode="numeric" data-k="ninos" value="'+f.ninos+'">' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>Cuotas</label>' +
+          '<div class="chip">'+num(f.adultos+f.ninos*0.5,1)+'</div>' +
+        '</div>' +
+        '<button class="del" type="button" title="Eliminar familia">✕</button>';
+
+      row.querySelectorAll("input").forEach(function(inp){
+        inp.addEventListener("input", function(){
+          var i2 = +row.dataset.idx, k = inp.dataset.k;
+          data.families[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          saveData();
+          recomputeFamilias();
+          recomputeCarnes();
+          renderResumen();
+        });
+      });
+      row.querySelector(".del").addEventListener("click", function(){
+        if(data.families.length<=1) return;
+        data.families.splice(+row.dataset.idx,1);
+        saveData(); buildFamilias(); recomputeCarnes(); renderResumen();
+      });
+
+      famRowsEl.appendChild(row);
+    });
+    recomputeFamilias();
+  }
+
+  function recomputeFamilias(){
+    var rows = famRowsEl.querySelectorAll(".row");
+    var totAdultos=0, totNinos=0;
+    data.families.forEach(function(f, i){
+      totAdultos += f.adultos; totNinos += f.ninos;
+      var chip = rows[i] && rows[i].querySelector(".chip");
+      if(chip) chip.textContent = num(f.adultos+f.ninos*0.5, 1);
+    });
+    var totCuotas = totAdultos + totNinos*0.5;
+    document.getElementById("famTotals").innerHTML =
+      "Familias: <b>"+data.families.length+"</b> · Adultos: <b>"+totAdultos+"</b> · Niños: <b>"+totNinos+
+      "</b> · Personas: <b>"+(totAdultos+totNinos)+"</b> · Cuotas: <b>"+num(totCuotas,1)+"</b>";
+  }
+
+  document.getElementById("addFam").addEventListener("click", function(){
+    data.families.push({name:"Familia "+(data.families.length+1), adultos:2, ninos:0});
+    saveData(); buildFamilias(); recomputeCarnes(); renderResumen();
+  });
+
+  // ---------- carnes ----------
+  // igual que en Otras Compras, un corte puede venderse por kilo o por unidad
+  // (ej. una malaya entera de 900 g a un precio fijo por pieza, no "al kilo").
+  // meatWeightKg() siempre devuelve el peso real en kg para el calculo de
+  // gramos por persona, sea cual sea la forma en que se compro.
+  function meatWeightKg(m){
+    if((m.unidad||"kg") === "un"){
+      return (m.kg||0) * ((m.pesoUnidad||0)/1000);
+    }
+    return m.kg||0;
+  }
+
+  var meatRowsEl = document.getElementById("meatRows");
+  function buildCarnes(){
+    meatRowsEl.innerHTML = "";
+    data.meats.forEach(function(m,i){
+      var row = document.createElement("div");
+      row.className = "row";
+      row.dataset.idx = i;
+      var unidad = m.unidad || "kg";
+      var qtyLabel = unidad==="un" ? "Cantidad (un)" : "Kg a comprar";
+      var priceLabel = unidad==="un" ? "Precio x unidad" : "Precio / kilo";
+      var pesoField = unidad==="un"
+        ? '<div class="field num"><label>Peso x unidad (g)</label><input type="number" min="0" step="10" inputmode="numeric" data-k="pesoUnidad" value="'+(m.pesoUnidad||0)+'"></div>'
+        : "";
+
+      row.innerHTML =
+        '<div class="field grow"><label>Corte</label><input type="text" data-k="name" value="'+escapeHtml(m.name)+'"></div>' +
+        '<div class="field"><label>Se vende por</label>' +
+          '<select data-k="unidad">' +
+            '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
+            '<option value="un"'+(unidad==="un"?" selected":"")+'>Unidad</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="field num"><label>'+qtyLabel+'</label><input type="number" min="0" step="0.1" inputmode="decimal" data-k="kg" value="'+m.kg+'"></div>' +
+        pesoField +
+        '<div class="field num"><label>G / persona</label><input type="text" class="gpOut" readonly></div>' +
+        '<div class="field money"><label>'+priceLabel+'</label><input type="number" min="0" inputmode="numeric" data-k="precio" value="'+m.precio+'"></div>' +
+        '<div class="field money"><label>Subtotal</label><input type="text" class="subOut" readonly></div>' +
+        '<button class="del" type="button" title="Eliminar corte">✕</button>';
+
+      row.querySelectorAll("input").forEach(function(inp){
+        inp.addEventListener("input", function(){
+          var i2 = +row.dataset.idx, k = inp.dataset.k;
+          data.meats[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          saveData();
+          if(k!=="name") recomputeCarnes();
+          renderResumen();
+        });
+      });
+      row.querySelector("select[data-k='unidad']").addEventListener("change", function(){
+        var i2 = +row.dataset.idx;
+        data.meats[i2].unidad = this.value;
+        saveData();
+        buildCarnes();
+        renderResumen();
+      });
+      row.querySelector(".del").addEventListener("click", function(){
+        if(data.meats.length<=1) return;
+        data.meats.splice(+row.dataset.idx,1);
+        saveData(); buildCarnes(); renderResumen();
+      });
+      meatRowsEl.appendChild(row);
+    });
+    recomputeCarnes();
+  }
+
+  document.getElementById("addMeat").addEventListener("click", function(){
+    data.meats.push({name:"Nuevo corte", kg:0, precio:0, unidad:"kg"});
+    saveData(); buildCarnes(); renderResumen();
+  });
+
+  function recomputeCarnes(){
+    var personas = totalPersonas();
+    var rows = meatRowsEl.querySelectorAll(".row");
+    var totGramosPP=0, totKg=0, totSub=0;
+    data.meats.forEach(function(m,i){
+      var weightKg = meatWeightKg(m);
+      var gramosPP = personas>0 ? (weightKg*1000/personas) : 0;
+      var subtotal = m.kg * m.precio;
+      totGramosPP += gramosPP; totKg += weightKg; totSub += subtotal;
+      var row = rows[i];
+      if(row){
+        row.querySelector(".gpOut").value = num(gramosPP,0);
+        row.querySelector(".subOut").value = money(subtotal);
+      }
+    });
+    document.getElementById("meatTotals").innerHTML =
+      "Kg totales: <b>"+num(totKg,2)+"</b> · Subtotal carnes: <b>"+money(totSub)+"</b>";
+
+    var chk = document.getElementById("meatCheck");
+    var totRound = Math.round(totGramosPP);
+    if(totRound>=480 && totRound<=520){
+      chk.className="note ok"; chk.textContent="OK: está quedando "+totRound+" g por persona (cerca de los 500 g recomendados).";
+    }else if(totRound>520){
+      chk.className="note bad"; chk.textContent="Va quedando bastante: "+totRound+" g por persona (más de 500 g). Puedes comprar menos si quieres.";
+    }else{
+      chk.className="note bad"; chk.textContent="Va quedando poco: "+totRound+" g por persona (menos de 500 g). Puede que falte carne.";
+    }
+    return totSub;
+  }
+
+  // ---------- otras compras ----------
+  var extraRowsEl = document.getElementById("extraRows");
+  function buildExtras(){
+    extraRowsEl.innerHTML = "";
+    data.extras.forEach(function(e,i){
+      var row = document.createElement("div");
+      row.className = "row";
+      row.dataset.idx = i;
+      var unidad = e.unidad || "kg";
+      row.innerHTML =
+        '<div class="field grow"><label>Producto</label><input type="text" data-k="name" value="'+escapeHtml(e.name)+'"></div>' +
+        '<div class="field"><label>Se vende por</label>' +
+          '<select data-k="unidad">' +
+            '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
+            '<option value="un"'+(unidad==="un"?" selected":"")+'>Unidad</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="field num"><label class="qtyLabel">'+(unidad==="un"?"Cantidad (un)":"Cantidad (kg)")+'</label><input type="number" min="0" step="0.1" inputmode="decimal" data-k="cantidad" value="'+e.cantidad+'"></div>' +
+        '<div class="field money"><label class="priceLabel">'+(unidad==="un"?"Precio x unidad":"Precio x kilo")+'</label><input type="number" min="0" inputmode="numeric" data-k="precio" value="'+e.precio+'"></div>' +
+        '<div class="field money"><label>Subtotal</label><input type="text" class="subOut" readonly></div>' +
+        '<button class="del" type="button" title="Eliminar producto">✕</button>';
+
+      row.querySelectorAll("input:not([readonly])").forEach(function(inp){
+        inp.addEventListener("input", function(){
+          var i2 = +row.dataset.idx, k = inp.dataset.k;
+          data.extras[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          saveData();
+          recomputeExtras();
+          renderResumen();
+        });
+      });
+      row.querySelector("select[data-k='unidad']").addEventListener("change", function(){
+        var i2 = +row.dataset.idx;
+        var val = this.value;
+        data.extras[i2].unidad = val;
+        row.querySelector(".qtyLabel").textContent = val==="un" ? "Cantidad (un)" : "Cantidad (kg)";
+        row.querySelector(".priceLabel").textContent = val==="un" ? "Precio x unidad" : "Precio x kilo";
+        saveData();
+        renderResumen();
+      });
+      row.querySelector(".del").addEventListener("click", function(){
+        if(data.extras.length<=1) return;
+        data.extras.splice(+row.dataset.idx,1);
+        saveData(); buildExtras(); renderResumen();
+      });
+      extraRowsEl.appendChild(row);
+    });
+    recomputeExtras();
+  }
+
+  function recomputeExtras(){
+    var rows = extraRowsEl.querySelectorAll(".row");
+    var totSub=0;
+    data.extras.forEach(function(e,i){
+      var subtotal = e.cantidad*e.precio;
+      totSub += subtotal;
+      var row = rows[i];
+      if(row) row.querySelector(".subOut").value = money(subtotal);
+    });
+    document.getElementById("extraTotals").innerHTML = "Subtotal otras compras: <b>"+money(totSub)+"</b>";
+    return totSub;
+  }
+
+  document.getElementById("addExtra").addEventListener("click", function(){
+    data.extras.push({name:"Otro", cantidad:0, precio:0, unidad:"kg"});
+    saveData(); buildExtras(); renderResumen();
+  });
+
+  // frase tipo "2 adultos + 1 niño = 2.5 cuotas", para que cada familia entienda
+  // de donde sale su numero de cuotas sin tener que preguntar.
+  function cuotaExplanation(adultos, ninos){
+    var parts = [];
+    if(adultos>0) parts.push(adultos + (adultos===1 ? " adulto" : " adultos"));
+    if(ninos>0) parts.push(ninos + (ninos===1 ? " niño" : " niños"));
+    var desc = parts.length ? parts.join(" + ") : "sin integrantes";
+    var cuotas = adultos + ninos*0.5;
+    return desc + " = " + num(cuotas,1) + (cuotas===1 ? " cuota" : " cuotas");
+  }
+
+  // ---------- resumen ----------
+  function computeTotals(){
+    var personas = totalPersonas();
+    var cuotas = totalCuotas();
+    var totCarnes = 0;
+    data.meats.forEach(function(m){ totCarnes += m.kg*m.precio; });
+    var totExtras = 0;
+    data.extras.forEach(function(e){ totExtras += e.cantidad*e.precio; });
+    var totalCompras = totCarnes + totExtras;
+    var valorCuota = cuotas>0 ? totalCompras/cuotas : 0;
+    return { personas:personas, cuotas:cuotas, totalCompras:totalCompras, valorCuota:valorCuota, valorNino:valorCuota/2 };
+  }
+
+  // grafico de barras simple con puro HTML/CSS (nada de canvas/SVG ni librerias):
+  // asi se ve igual en pantalla y en la foto que genera html2canvas.
+  function renderBarChart(containerId, items){
+    var wrap = document.getElementById(containerId);
+    if(!wrap) return;
+    wrap.innerHTML = "";
+    var withValue = items.filter(function(it){ return it.value>0; });
+    if(withValue.length===0){
+      wrap.innerHTML = "<p class='sec-hint' style='margin:0;'>Agrega precios para ver el gráfico.</p>";
+      return;
+    }
+    withValue.sort(function(a,b){ return b.value-a.value; });
+    var max = withValue[0].value;
+    withValue.forEach(function(it){
+      var pct = max>0 ? Math.max(4, Math.round(it.value/max*100)) : 0;
+      var row = document.createElement("div");
+      row.className = "bar-row";
+      row.innerHTML =
+        "<div class='bar-head'>" +
+          "<span class='bar-label'>"+escapeHtml(it.name||"(sin nombre)")+"</span>" +
+          "<span class='bar-value'>"+money(it.value)+"</span>" +
+        "</div>" +
+        "<div class='bar-track'><div class='bar-fill' style='width:"+pct+"%'></div></div>";
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderComprasResumen(){
+    var body = document.getElementById("comprasResumenBody");
+    body.innerHTML = "";
+    var chartItems = [];
+    getAllPurchasedItems().forEach(function(it){
+      var subtotal = it.kg*it.precio;
+      chartItems.push({name:it.name, value:subtotal});
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td>"+escapeHtml(it.name||"(sin nombre)")+"</td>" +
+        "<td style='text-align:right'>"+formatQty(it.kg, it.unidad)+"</td>" +
+        "<td style='text-align:right'>"+money(it.precio)+(it.unidad==="un"?" c/u":"/kg")+"</td>" +
+        "<td class='money' style='text-align:right'>"+money(subtotal)+"</td>";
+      body.appendChild(tr);
+    });
+    renderBarChart("comprasChart", chartItems);
+  }
+
+  function renderResumen(){
+    var t = computeTotals();
+
+    renderComprasResumen();
+    document.getElementById("topTotal").textContent = money(t.totalCompras);
+    document.getElementById("topCuota").textContent = money(t.valorCuota);
+
+    document.getElementById("rPersonas").textContent = t.personas;
+    document.getElementById("rCuotas").textContent = num(t.cuotas,1);
+    document.getElementById("rAdulto").textContent = money(t.valorCuota);
+    document.getElementById("rNino").textContent = money(t.valorNino);
+    document.getElementById("rTotal").textContent = money(t.totalCompras);
+
+    var body = document.getElementById("rFamBody");
+    body.innerHTML = "";
+    var sumCuotas=0, sumPagar=0;
+    data.families.forEach(function(f, i){
+      var c = f.adultos + f.ninos*0.5;
+      var pagar = c*t.valorCuota;
+      sumCuotas += c; sumPagar += pagar;
+      var tr = document.createElement("tr");
+      tr.dataset.idx = i;
+      tr.innerHTML = "<td>"+escapeHtml(f.name||"(sin nombre)")+"</td>" +
+        "<td class='center'>"+num(c,1)+"</td>" +
+        "<td class='money'>"+money(pagar)+"</td>" +
+        "<td class='share-cell'><button type='button' class='share-fam-btn' title='Compartir con esta familia'>📤</button></td>";
+      tr.querySelector(".share-fam-btn").addEventListener("click", function(e){ shareFamily(i, e.currentTarget); });
+      body.appendChild(tr);
+    });
+    document.getElementById("rFamCuotasTot").textContent = num(sumCuotas,1);
+    document.getElementById("rFamTotalTot").textContent = money(sumPagar);
+
+    var verify = document.getElementById("verifyNote");
+    if(Math.round(sumPagar)===Math.round(t.totalCompras)){
+      verify.className="note ok"; verify.textContent="OK: lo que pagan las familias cuadra con el total de compras.";
+    }else{
+      verify.className="note bad"; verify.textContent="Revisa: la suma por familia no cuadra con el total de compras.";
+    }
+  }
+
+  // ---------- reparto por producto (carnes + otras compras) ----------
+  // "kg" = se compra por peso (siempre las carnes, y las otras compras que elijas);
+  // "un" = se compra por unidad (ej. longaniza artesanal que se vende por pieza).
+  function getAllPurchasedItems(){
+    var items = [];
+    data.meats.forEach(function(m){ items.push({name:m.name, kg:m.kg, precio:m.precio, unidad:m.unidad||"kg"}); });
+    data.extras.forEach(function(e){ items.push({name:e.name, kg:e.cantidad, precio:e.precio, unidad:e.unidad||"kg"}); });
+    return items;
+  }
+
+  function formatQty(qty, unidad){
+    if(unidad==="un"){
+      if(!isFinite(qty) || qty<=0) return "0 un";
+      var isWhole = Math.round(qty*100)===Math.round(qty)*100;
+      return (isWhole ? Math.round(qty) : num(qty,1)) + " un";
+    }
+    if(!isFinite(qty) || qty<=0) return "0 g";
+    if(qty < 1) return Math.round(qty*1000) + " g";
+    return num(qty,2) + " kg";
+  }
+
+  // usada para el detalle de UNA familia (famShareItemsBody): cuotasMultiplier son
+  // las cuotas de esa familia, asi que la cantidad/valor de cada producto ya viene
+  // exacta para ella. El valor de cada producto siempre suma igual al total a pagar.
+  function renderItemsTable(tbodyId, cuotasMultiplier, t){
+    var body = document.getElementById(tbodyId);
+    if(!body) return;
+    body.innerHTML = "";
+    getAllPurchasedItems().forEach(function(it){
+      var perCuota = t.cuotas>0 ? it.kg/t.cuotas : 0;
+      var qty = perCuota*cuotasMultiplier;
+      var valor = qty*it.precio;
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td>"+escapeHtml(it.name||"(sin nombre)")+"</td>" +
+        "<td style='text-align:right'>"+formatQty(qty, it.unidad)+"</td>" +
+        "<td class='money' style='text-align:right'>"+money(valor)+"</td>";
+      body.appendChild(tr);
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s==null?"":s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  // ---------- compartir una imagen (resumen general o de una familia) ----------
+  function currentSurfaceColor(){
+    var v = getComputedStyle(document.documentElement).getPropertyValue("--surface");
+    return v ? v.trim() : "#ffffff";
+  }
+
+  async function shareImageElement(el, opts){
+    if(typeof html2canvas !== "function"){
+      alert("No se pudo generar la imagen (falta la librería de captura).");
+      return;
+    }
+    el.classList.add("capturing");
+    try{
+      var canvas = await html2canvas(el, { backgroundColor: currentSurfaceColor(), scale: 2 });
+      var blob = await new Promise(function(resolve){ canvas.toBlob(resolve, "image/png"); });
+      if(!blob) throw new Error("No se pudo generar la imagen");
+
+      var downloads = null;
+      try{ downloads = await claude.use("downloads"); }catch(e){}
+
+      if(downloads){
+        await downloads.save({ filename: opts.fileName, data: blob });
+        alert('Imagen guardada. Ábrela desde tus descargas para enviarla por WhatsApp o donde quieras.');
+      } else {
+        // sin la capacidad de descargas disponible en esta vista: no hay forma
+        // de ofrecer el archivo, asi que al menos lo dejamos abierto para que
+        // el viewer pueda guardarlo el mismo con "mantener presionado > guardar imagen".
+        var url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+      }
+    }catch(err){
+      if(!(err && String(err.message||err).toLowerCase().indexOf("cancel")>=0) &&
+         !(err && err.code==="declined")){
+        alert("No se pudo compartir la imagen: " + (err && err.message ? err.message : err));
+      }
+    }finally{
+      el.classList.remove("capturing");
+    }
+  }
+
+  async function runWithButtonBusy(btn, busyLabel, fn){
+    var originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = busyLabel;
+    try{ await fn(); }
+    finally{ btn.disabled = false; btn.textContent = originalLabel; }
+  }
+
+  var shareBtn = document.getElementById("shareBtn");
+  var captureEl = document.getElementById("resumenCapture");
+  shareBtn.addEventListener("click", function(){
+    runWithButtonBusy(shareBtn, "Generando imagen…", function(){
+      return shareImageElement(captureEl, {
+        fileName: "asalitros_resumen_" + Date.now() + ".png",
+        title: "Resumen del Asado",
+        text: "Esto es lo que le toca pagar a cada uno 🔥"
+      });
+    });
+  });
+
+  // ---------- compartir con UNA familia (directo, sin ventana emergente) ----------
+  var famShareCapture = document.getElementById("famShareCapture");
+
+  function shareFamily(i, btn){
+    var f = data.families[i];
+    if(!f) return;
+    var t = computeTotals();
+    var cuotas = f.adultos + f.ninos*0.5;
+    var pagar = cuotas*t.valorCuota;
+
+    document.getElementById("famShareName").textContent = f.name || "(sin nombre)";
+    document.getElementById("famShareAdultos").textContent = f.adultos;
+    document.getElementById("famShareNinos").textContent = f.ninos;
+    document.getElementById("famShareCuotas").textContent = num(cuotas,1);
+    document.getElementById("famShareTotal").textContent = money(pagar);
+    document.getElementById("famShareExplain").textContent = cuotaExplanation(f.adultos, f.ninos);
+    document.getElementById("famShareMath").textContent =
+      num(cuotas,1) + (cuotas===1 ? " cuota" : " cuotas") + " × " + money(t.valorCuota) + " = " + money(pagar);
+    renderItemsTable("famShareItemsBody", cuotas, t);
+    var chartItems = getAllPurchasedItems().map(function(it){
+      var perCuota = t.cuotas>0 ? it.kg/t.cuotas : 0;
+      return { name: it.name, value: (perCuota*cuotas)*it.precio };
+    });
+    renderBarChart("famShareChart", chartItems);
+
+    var doShare = function(){
+      return shareImageElement(famShareCapture, {
+        fileName: "asalitros_" + (f.name||"familia").replace(/[^a-z0-9]+/gi,"_") + ".png",
+        title: "Asado - " + f.name,
+        text: "Hola! Esto es lo que le toca pagar a " + f.name + " del asado 🔥"
+      });
+    };
+    if(btn){
+      btn.disabled = true;
+      doShare().finally(function(){ btn.disabled = false; });
+    }else{
+      doShare();
+    }
+  }
+
+  // ---------- modo claro / oscuro ----------
+  var themeToggle = document.getElementById("themeToggle");
+  function systemPrefersDark(){
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function applyTheme(theme){
+    document.documentElement.setAttribute("data-theme", theme);
+    themeToggle.textContent = theme==="dark" ? "☀️" : "🌙";
+    themeToggle.title = theme==="dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
+    try{ localStorage.setItem("themePref", theme); }catch(e){}
+  }
+  var storedTheme = null;
+  try{ storedTheme = localStorage.getItem("themePref"); }catch(e){}
+  applyTheme(storedTheme || (systemPrefersDark() ? "dark" : "light"));
+  themeToggle.addEventListener("click", function(){
+    var current = document.documentElement.getAttribute("data-theme");
+    applyTheme(current==="dark" ? "light" : "dark");
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    if(confirm("¿Borrar todos los datos y volver a los valores de ejemplo?")){
+      data = JSON.parse(JSON.stringify(defaultData));
+      saveData();
+      renderAll();
+    }
+  });
+
+  // ---------- historial de cotizaciones ----------
+  // igual que el estado actual: localStorage es la copia local instantanea,
+  // y la coleccion "history" en la nube es lo que permite verlo desde
+  // cualquier dispositivo que abra este mismo link.
+  var HISTORY_KEY = "asalitrosHistory_v1";
+  var historyColRef = null;
+
+  function loadHistory(){
+    try{
+      var raw = localStorage.getItem(HISTORY_KEY);
+      var parsed = raw ? JSON.parse(raw) : null;
+      if(Array.isArray(parsed)) return parsed;
+    }catch(e){}
+    return [];
+  }
+  var history = loadHistory();
+  function persistHistoryLocal(){
+    try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }catch(e){}
+  }
+
+  function renderHistory(){
+    var wrap = document.getElementById("historyList");
+    wrap.innerHTML = "";
+    if(history.length===0){
+      var p = document.createElement("p");
+      p.className = "sec-hint";
+      p.style.margin = "0";
+      p.textContent = "Todavía no has guardado ninguna cotización.";
+      wrap.appendChild(p);
+      return;
+    }
+    history.slice().sort(function(a,b){ return b.id-a.id; }).forEach(function(entry){
+      var row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML =
+        "<div class='field grow'><label>Nombre</label><div style='padding:9px 0;font-weight:600;'>"+escapeHtml(entry.name)+"</div></div>" +
+        "<div class='field'><label>Fecha</label><div class='chip' style='font-size:.75rem;'>"+escapeHtml(entry.dateLabel)+"</div></div>" +
+        "<div class='field money'><label>Total</label><div class='chip'>"+money(entry.total)+"</div></div>" +
+        "<button type='button' class='add-btn' style='width:auto;padding:8px 14px;'>Ver</button>" +
+        "<button type='button' class='del' title='Eliminar'>✕</button>";
+      var btns = row.querySelectorAll("button");
+      btns[0].addEventListener("click", function(){ loadHistoryEntry(entry.id); });
+      btns[1].addEventListener("click", function(){
+        if(confirm('¿Eliminar la cotización guardada "'+entry.name+'"? Esto no se puede deshacer.')){
+          history = history.filter(function(h){ return h.id!==entry.id; });
+          persistHistoryLocal();
+          renderHistory();
+          if(historyColRef){ historyColRef.doc(String(entry.id)).delete().catch(function(){}); }
+        }
+      });
+      wrap.appendChild(row);
+    });
+  }
+
+  document.getElementById("saveHistoryBtn").addEventListener("click", function(){
+    var t = computeTotals();
+    var defaultName = "Asado " + new Date().toLocaleDateString("es-CL");
+    var name = prompt("Nombre para esta cotización:", defaultName);
+    if(name===null) return; // cancelado
+    name = name.trim() || defaultName;
+    var entry = {
+      id: Date.now(),
+      name: name,
+      dateLabel: new Date().toLocaleDateString("es-CL"),
+      total: t.totalCompras,
+      data: JSON.parse(JSON.stringify(data))
+    };
+    history.push(entry);
+    persistHistoryLocal();
+    renderHistory();
+    if(historyColRef){ historyColRef.doc(String(entry.id)).set(entry).catch(function(){}); }
+    alert('Cotización "'+name+'" guardada. Puedes verla cuando quieras desde el Historial.');
+  });
+
+  function loadHistoryEntry(id){
+    var entry = history.filter(function(h){ return h.id===id; })[0];
+    if(!entry) return;
+    if(!confirm('Vas a reemplazar los datos actuales por "'+entry.name+'". Si no has guardado lo que tienes ahora, se perderá. ¿Continuar?')){
+      return;
+    }
+    data = JSON.parse(JSON.stringify(entry.data));
+    saveData();
+    renderAll();
+    alert('Cotización "'+entry.name+'" cargada.');
+  }
+
+  (async function initHistorySync(){
+    if(!dbApi){
+      // "db" puede no estar listo todavia (initCloudSync corre en paralelo);
+      // reintenta brevemente antes de resignarse a trabajar solo con localStorage.
+      for(var i=0;i<20 && !dbApi;i++){ await new Promise(function(r){ setTimeout(r,150); }); }
+      if(!dbApi) return;
+    }
+    historyColRef = dbApi.collection("history");
+    try{
+      var snap = await historyColRef.get();
+      var fromCloud = snap.docs.map(function(d){ return d.data(); }).filter(function(e){ return e && e.id && e.data; });
+      if(fromCloud.length>0){
+        history = fromCloud;
+        persistHistoryLocal();
+        renderHistory();
+      }else if(history.length>0){
+        // habia cotizaciones solo en este dispositivo: subelas para que queden
+        // disponibles tambien desde otros dispositivos.
+        history.forEach(function(entry){ historyColRef.doc(String(entry.id)).set(entry).catch(function(){}); });
+      }
+    }catch(e){}
+    historyColRef.onSnapshot(function(snap){
+      history = snap.docs.map(function(d){ return d.data(); }).filter(function(e){ return e && e.id && e.data; });
+      persistHistoryLocal();
+      renderHistory();
+    }, function(){ /* error terminal: sigue funcionando solo con localStorage */ });
+  })();
+
+  function renderAll(){
+    buildFamilias();
+    buildCarnes();
+    buildExtras();
+    recomputeCarnes();
+    renderResumen();
+  }
+  renderAll();
+  renderHistory();
+})();
+</script>
+</body>
+</html>
