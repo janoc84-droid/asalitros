@@ -350,31 +350,27 @@
     <div class="totals-line" id="famTotals"></div>
   </section>
 
-  <!-- 2. CARNES -->
+  <!-- 2. COMPRAS: carnes y todo lo demas juntos, son compras en general -->
   <section class="card">
-    <div class="sec-head"><div class="sec-num">2</div><h2>Cálculo de carnes</h2></div>
-    <p class="sec-hint">Ingresa los kilos que compraste de cada corte y el precio por kilo (lo que te dicen en el supermercado). La app calcula solo cuántos gramos por persona está quedando.</p>
-    <div id="meatRows"></div>
-    <button class="add-btn" id="addMeat" type="button">+ Agregar corte</button>
-    <div class="note" id="meatCheck"></div>
-    <div class="totals-line" id="meatTotals"></div>
+    <div class="sec-head"><div class="sec-num">2</div><h2>Compras</h2></div>
+    <p class="sec-hint">Todo lo que se compra para el asado: carnes, longaniza, pan, bebidas, lo que sea. Ingresa cantidad y precio de cada uno (lo que te dicen en la caja).</p>
+
+    <div class="resumen-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+      <div class="stat"><div class="k">Total compras</div><div class="v" id="comprasTotalTop">$ 0</div></div>
+    </div>
+    <div class="note" id="gastoCheckTop" style="margin-top:10px;"></div>
+
+    <div id="comprasRows" style="margin-top:14px;"></div>
+    <button class="add-btn" id="addCompra" type="button">+ Agregar producto</button>
+    <div class="note" id="meatCheck" style="margin-top:10px;"></div>
+    <div class="totals-line" id="comprasTotals"></div>
   </section>
 
-  <!-- 3. OTRAS COMPRAS -->
-  <section class="card">
-    <div class="sec-head"><div class="sec-num">3</div><h2>Otras compras</h2></div>
-    <p class="sec-hint">Longaniza, pan, carbón, bebidas… lo que falte.</p>
-    <div id="extraRows"></div>
-    <button class="add-btn" id="addExtra" type="button">+ Agregar producto</button>
-    <div class="totals-line" id="extraTotals"></div>
-  </section>
-
-  <!-- 4. RESUMEN -->
-  <!-- 4. RESUMEN DE COMPRAS: simple, enfocado en el total gastado (no en personas) -->
+  <!-- 3. RESUMEN DE COMPRAS: simple, enfocado en el total gastado (no en personas) -->
   <section class="card">
     <div id="resumenCapture" class="capture-card">
       <div class="capture-brand">🔥 Asalitros</div>
-      <div class="sec-head"><div class="sec-num">4</div><h2>Resumen de compras</h2></div>
+      <div class="sec-head"><div class="sec-num">3</div><h2>Resumen de compras</h2></div>
       <p class="sec-hint">Todo lo que se compró y cuánto costó en total.</p>
 
       <div class="bar-chart" id="comprasChart"></div>
@@ -399,7 +395,7 @@
 
   <!-- 5. PAGO POR FAMILIA -->
   <section class="card">
-    <div class="sec-head"><div class="sec-num">5</div><h2>Pago por familia</h2></div>
+    <div class="sec-head"><div class="sec-num">4</div><h2>Pago por familia</h2></div>
     <p class="sec-hint">Cuánto le toca pagar a cada familia según sus cuotas. Cada adulto = 1 cuota, cada niño = 0.5 cuota (2 niños = 1 cuota entera). Ejemplo: 2 adultos + 1 niño = 2.5 cuotas.</p>
 
     <div class="resumen-grid">
@@ -427,7 +423,7 @@
 
   <!-- 6. HISTORIAL -->
   <section class="card">
-    <div class="sec-head"><div class="sec-num">6</div><h2>Historial</h2></div>
+    <div class="sec-head"><div class="sec-num">5</div><h2>Historial</h2></div>
     <p class="sec-hint">Guarda esta cotización para poder verla después, sin perder lo que tengas mientras armas la siguiente.</p>
     <button class="add-btn" id="saveHistoryBtn" type="button">💾 Guardar esta cotización</button>
     <div id="historyList" style="margin-top:14px;"></div>
@@ -479,8 +475,8 @@
   // clave (ej. a "asadoCalcData_v3"), agrega la clave vieja a LEGACY_STORE_KEYS y
   // escribe su conversion en migrateLegacyData(). Nunca cambies STORE_KEY sin eso:
   // una actualizacion de la app jamas debe borrar lo que la familia ya escribio.
-  var STORE_KEY = "asadoCalcData_v2";
-  var LEGACY_STORE_KEYS = ["asadoCalcData_v1"];
+  var STORE_KEY = "asadoCalcData_v3";
+  var LEGACY_STORE_KEYS = ["asadoCalcData_v2", "asadoCalcData_v1"];
 
   var defaultData = {
     families: [
@@ -492,31 +488,43 @@
       {name:"Familia 6", adultos:2, ninos:0},
       {name:"Familia 7", adultos:2, ninos:0}
     ],
-    meats: [
-      {name:"Vacuno", kg:3.5, precio:0},
-      {name:"Pollo",  kg:2.1, precio:0},
-      {name:"Cerdo",  kg:1.4, precio:0}
-    ],
-    extras: [
-      {name:"Longaniza", cantidad:0, precio:0},
-      {name:"Pan", cantidad:0, precio:0}
+    items: [
+      {name:"Vacuno", cantidad:3.5, precio:0, unidad:"kg"},
+      {name:"Pollo",  cantidad:2.1, precio:0, unidad:"kg"},
+      {name:"Cerdo",  cantidad:1.4, precio:0, unidad:"kg"},
+      {name:"Longaniza", cantidad:0, precio:0, unidad:"kg"},
+      {name:"Pan", cantidad:0, precio:0, unidad:"kg"}
     ]
   };
 
+  // convierte datos de versiones anteriores al formato actual. Antes "carnes"
+  // y "otras compras" vivian en dos listas separadas (meats/extras); ahora es
+  // una sola lista "items" (el usuario pidio unificarlas en una sola seccion
+  // de Compras). Tambien resuelve la version aun mas vieja que guardaba
+  // "gramos por persona" en vez de kilos.
   function migrateLegacyData(old){
     var families = old.families || [];
-    var extras = old.extras || [];
     var totalPersonasLegacy = 0;
     families.forEach(function(f){ totalPersonasLegacy += (f.adultos||0) + (f.ninos||0); });
 
-    var meats = (old.meats || []).map(function(m){
-      if(typeof m.kg === "number") return m; // ya viene en el formato nuevo
-      var gramos = typeof m.gramos === "number" ? m.gramos : 0;
-      var kg = totalPersonasLegacy>0 ? (totalPersonasLegacy*gramos/1000) : 0;
-      return { name:m.name, kg:Math.round(kg*100)/100, precio:m.precio||0 };
-    });
+    var items = old.items;
+    if(!Array.isArray(items)){
+      var meats = (old.meats || []).map(function(m){
+        var kg = m.kg;
+        if(typeof kg !== "number"){
+          var gramos = typeof m.gramos === "number" ? m.gramos : 0;
+          kg = totalPersonasLegacy>0 ? (totalPersonasLegacy*gramos/1000) : 0;
+          kg = Math.round(kg*100)/100;
+        }
+        return { name:m.name, cantidad:kg, precio:m.precio||0, unidad:m.unidad||"kg", pesoUnidad:m.pesoUnidad };
+      });
+      var extras = (old.extras || []).map(function(e){
+        return { name:e.name, cantidad:e.cantidad||0, precio:e.precio||0, unidad:e.unidad||"kg" };
+      });
+      items = meats.concat(extras);
+    }
 
-    return { families:families, meats:meats, extras:extras };
+    return { families:families, items:items };
   }
 
   function loadData(){
@@ -524,7 +532,7 @@
       var raw = localStorage.getItem(STORE_KEY);
       if(raw){
         var parsed = JSON.parse(raw);
-        if(parsed && parsed.families && parsed.meats && parsed.extras) return parsed;
+        if(parsed && parsed.families && Array.isArray(parsed.items)) return parsed;
       }
     }catch(e){}
 
@@ -535,7 +543,7 @@
         var oldRaw = localStorage.getItem(LEGACY_STORE_KEYS[i]);
         if(!oldRaw) continue;
         var old = JSON.parse(oldRaw);
-        if(old && old.families && old.extras){
+        if(old && old.families && (Array.isArray(old.items) || old.extras || old.meats)){
           var migrated = migrateLegacyData(old);
           try{
             localStorage.setItem(STORE_KEY, JSON.stringify(migrated));
@@ -583,7 +591,7 @@
   }
 
   function isRemoteStateValid(remote){
-    return !!(remote && remote.families && remote.meats && remote.extras);
+    return !!(remote && remote.families && Array.isArray(remote.items));
   }
 
   (async function initCloudSync(){
@@ -675,14 +683,14 @@
           data.families[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
           saveData();
           recomputeFamilias();
-          recomputeCarnes();
+          recomputeCompras();
           renderResumen();
         });
       });
       row.querySelector(".del").addEventListener("click", function(){
         if(data.families.length<=1) return;
         data.families.splice(+row.dataset.idx,1);
-        saveData(); buildFamilias(); recomputeCarnes(); renderResumen();
+        saveData(); buildFamilias(); recomputeCompras(); renderResumen();
       });
 
       famRowsEl.appendChild(row);
@@ -706,35 +714,49 @@
 
   document.getElementById("addFam").addEventListener("click", function(){
     data.families.push({name:"Familia "+(data.families.length+1), adultos:2, ninos:0});
-    saveData(); buildFamilias(); recomputeCarnes(); renderResumen();
+    saveData(); buildFamilias(); recomputeCompras(); renderResumen();
   });
 
-  // ---------- carnes ----------
-  // igual que en Otras Compras, un corte puede venderse por kilo o por unidad
-  // (ej. una malaya entera de 900 g a un precio fijo por pieza, no "al kilo").
-  // meatWeightKg() siempre devuelve el peso real en kg para el calculo de
-  // gramos por persona, sea cual sea la forma en que se compro.
-  function meatWeightKg(m){
-    if((m.unidad||"kg") === "un"){
-      return (m.kg||0) * ((m.pesoUnidad||0)/1000);
+  // ---------- compras (carnes + todo lo demas, en una sola lista) ----------
+  // cualquier producto se puede comprar por kilo o por unidad (ej. una malaya
+  // entera de 900 g a un precio fijo por pieza, o una caja de bebidas).
+  // itemWeightKg() siempre devuelve el peso real en kg, sea cual sea la forma
+  // en que se compro -se usa para el aviso de gramos de carne por persona.
+  function itemWeightKg(it){
+    if((it.unidad||"kg") === "un"){
+      return (it.cantidad||0) * ((it.pesoUnidad||0)/1000);
     }
-    return m.kg||0;
+    return it.cantidad||0;
+  }
+  function isMeatIcon(icon){
+    return icon==="🐄" || icon==="🐔" || icon==="🐖" || icon==="🐑";
   }
 
   // detecta un icono segun palabras clave en el nombre que se va escribiendo,
   // para reconocer de un vistazo que es cada corte/producto (vacuno, pollo,
   // longaniza, etc.) sin tener que leer el texto completo.
+  // se revisa ANTES que la lista de abajo: cortes como "malaya" o "posta"
+  // existen tanto de vacuno como de cerdo, asi que si el nombre trae la
+  // especie explicita (ej. "Malaya de Cerdo") esa palabra manda por sobre
+  // el corte generico, en vez de asumir vacuno solo porque dice "malaya".
+  var PRIORITY_FOOD_ICONS = [
+    [/pollo\s*ganso/i, "🐄"], // corte de VACUNO a pesar del nombre -va antes que "pollo"
+    [/cerdo|chancho|cochin/i, "🐖"],
+    [/vacuno|\bres\b|\bbuey\b|\bvaca\b/i, "🐄"],
+    [/pollo|\bave\b|gallina|pavo/i, "🐔"],
+    [/cordero|oveja/i, "🐑"]
+  ];
   var FOOD_ICONS = [
-    // carnes y cortes
-    [/vacuno|\bres\b|buey|\bvaca\b|malaya|posta|filete|lomo|plateada|asiento|huachalomo|picana|asado\s*de\s*tira|entra[ñn]a|choclillo|sobrecostilla|tapapecho|abastero|punta\s*paleta/i, "🐄"],
-    [/pollo|\bave\b|gallina|pavo|pechuga|muslo|\bala\b|alitas|trutro/i, "🐔"],
-    [/cerdo|chancho|costillar|panceta|pernil|chuleta|tocino/i, "🐖"],
-    [/cordero|oveja/i, "🐑"],
-    [/longaniza|chorizo|salchich|vienesa|prieta|morcilla/i, "🌭"],
+    // carnes y cortes (genericos: si no dijo la especie, se asume lo mas
+    // comun para ese corte en una carniceria chilena)
+    [/malaya|posta|filete|lomo|plateada|asiento|huachalomo|picana|asados?\s*(de\s*tira|carnicero)|entra[ñn]a|choclillo|sobrecostilla|tapapecho|tapabarriga|abastero|puntas?\s*(paleta|de\s*ganso)|osobuco|palanca/i, "🐄"],
+    [/pechuga|muslo|\bala\b|alitas|trutro/i, "🐔"],
+    [/costillar|panceta|pernil|chuleta|tocino|\bpulpa\b|patitas|lomito/i, "🐖"],
+    [/longaniza|longanicill|chorizo|choricill|salchich|vienesa|prieta|morcilla|butifarra|mortadela|arrollado/i, "🥓"],
     [/pescado|salm[oó]n|merluza|at[uú]n|reineta|congrio/i, "🐟"],
     [/camar[oó]n|marisco|macha|chorito|jaiba|ostion|erizo/i, "🦐"],
-    // verduras y vegetales
-    [/verdura|vegetal|lechuga|repollo|acelga|espinaca/i, "🥬"],
+    // verduras, ensaladas y vegetales
+    [/verdura|vegetal|lechuga|repollo|acelga|espinaca|\bapio\b/i, "🥬"],
     [/tomate/i, "🍅"],
     [/cebolla/i, "🧅"],
     [/\bpalta\b|aguacate/i, "🥑"],
@@ -742,15 +764,38 @@
     [/\bpapa\b|patata/i, "🥔"],
     [/zanahoria/i, "🥕"],
     [/pimiento|piment[oó]n|\baj[ií]\b|morr[oó]n/i, "🫑"],
-    [/pepino/i, "🥒"],
+    [/pepino|zapallos?\s*italianos?|zucchini/i, "🥒"],
+    [/br[oó]coli|coliflor/i, "🥦"],
+    [/zapallo|calabaza/i, "🎃"],
+    [/berenjena/i, "🍆"],
+    [/champi[ñn]{1,2}[oó]n|hongo/i, "🍄"],
+    [/\bajo\b/i, "🧄"],
+    [/perejil|cilantro|culantro/i, "🌿"],
+    [/porotos?\s*verdes?/i, "🫛"],
+    [/\bporoto/i, "🫘"],
     [/ensalada/i, "🥗"],
     // frutas
     [/\buva\b|uvas/i, "🍇"],
     [/sand[íi]a/i, "🍉"],
+    [/mel[oó]n/i, "🍈"],
     [/frutilla|fresa/i, "🍓"],
     [/manzana/i, "🍎"],
     [/naranja/i, "🍊"],
     [/lim[oó]n/i, "🍋"],
+    [/pl[aá]tano|banana/i, "🍌"],
+    [/\bpera\b/i, "🍐"],
+    [/durazno/i, "🍑"],
+    [/\bkiwi\b/i, "🥝"],
+    [/pi[ñn]a\b|ananas/i, "🍍"],
+    [/cereza/i, "🍒"],
+    [/mango/i, "🥭"],
+    [/ar[aá]ndano/i, "🫐"],
+    // postres y golosinas (para los niños)
+    [/helado/i, "🍦"],
+    [/torta|pastel|queque/i, "🍰"],
+    [/chocolate/i, "🍫"],
+    [/galleta/i, "🍪"],
+    [/dulce|caramelo|confite/i, "🍬"],
     // panaderia y granos
     [/\bpan\b|marraqueta|hallulla|pan\s*amasado/i, "🍞"],
     [/arroz/i, "🍚"],
@@ -775,31 +820,34 @@
   ];
   function detectFoodIcon(name){
     var n = String(name||"");
-    for(var i=0;i<FOOD_ICONS.length;i++){
-      if(FOOD_ICONS[i][0].test(n)) return FOOD_ICONS[i][1];
+    for(var i=0;i<PRIORITY_FOOD_ICONS.length;i++){
+      if(PRIORITY_FOOD_ICONS[i][0].test(n)) return PRIORITY_FOOD_ICONS[i][1];
+    }
+    for(var j=0;j<FOOD_ICONS.length;j++){
+      if(FOOD_ICONS[j][0].test(n)) return FOOD_ICONS[j][1];
     }
     return "🍽️";
   }
 
-  var meatRowsEl = document.getElementById("meatRows");
-  function buildCarnes(){
-    meatRowsEl.innerHTML = "";
-    data.meats.forEach(function(m,i){
+  var comprasRowsEl = document.getElementById("comprasRows");
+  function buildCompras(){
+    comprasRowsEl.innerHTML = "";
+    data.items.forEach(function(it,i){
       var row = document.createElement("div");
       row.className = "row";
       row.dataset.idx = i;
-      var unidad = m.unidad || "kg";
-      var qtyLabel = unidad==="un" ? "Cantidad (un)" : "Kg a comprar";
-      var priceLabel = unidad==="un" ? "Precio x unidad" : "Precio / kilo";
+      var unidad = it.unidad || "kg";
+      var qtyLabel = unidad==="un" ? "Cantidad (un)" : "Cantidad (kg)";
+      var priceLabel = unidad==="un" ? "Precio x unidad" : "Precio x kilo";
       var pesoField = unidad==="un"
-        ? '<div class="field num"><label>Peso x unidad (g)</label><input type="number" min="0" step="10" inputmode="numeric" data-k="pesoUnidad" value="'+(m.pesoUnidad||0)+'"></div>'
+        ? '<div class="field num"><label>Peso x unidad (g)</label><input type="number" min="0" step="10" inputmode="numeric" data-k="pesoUnidad" value="'+(it.pesoUnidad||0)+'"></div>'
         : "";
 
       row.innerHTML =
-        '<div class="field grow"><label>Corte</label>' +
+        '<div class="field grow"><label>Producto</label>' +
           '<div class="name-with-icon">' +
-            '<span class="food-icon">'+detectFoodIcon(m.name)+'</span>' +
-            '<input type="text" data-k="name" value="'+escapeHtml(m.name)+'">' +
+            '<span class="food-icon">'+detectFoodIcon(it.name)+'</span>' +
+            '<input type="text" data-k="name" value="'+escapeHtml(it.name)+'">' +
           '</div>' +
         '</div>' +
         '<div class="field"><label>Se vende por</label>' +
@@ -808,154 +856,114 @@
             '<option value="un"'+(unidad==="un"?" selected":"")+'>Unidad</option>' +
           '</select>' +
         '</div>' +
-        '<div class="field num"><label>'+qtyLabel+'</label><input type="number" min="0" step="0.1" inputmode="decimal" data-k="kg" value="'+m.kg+'"></div>' +
+        '<div class="field num"><label>'+qtyLabel+'</label><input type="number" min="0" step="0.1" inputmode="decimal" data-k="cantidad" value="'+it.cantidad+'"></div>' +
         pesoField +
-        '<div class="field num"><label>G / persona</label><input type="text" class="gpOut" readonly></div>' +
-        '<div class="field money"><label>'+priceLabel+'</label><input type="number" min="0" inputmode="numeric" data-k="precio" value="'+m.precio+'"></div>' +
+        '<div class="field num"><label>Por persona</label><input type="text" class="ppOut" readonly></div>' +
+        '<div class="field money"><label>'+priceLabel+'</label><input type="number" min="0" inputmode="numeric" data-k="precio" value="'+it.precio+'"></div>' +
         '<div class="field money"><label>Subtotal</label><input type="text" class="subOut" readonly></div>' +
-        '<button class="del" type="button" title="Eliminar corte">✕</button>';
+        '<button class="del" type="button" title="Eliminar producto">✕</button>';
 
       row.querySelectorAll("input").forEach(function(inp){
         inp.addEventListener("input", function(){
           var i2 = +row.dataset.idx, k = inp.dataset.k;
-          data.meats[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          data.items[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
           saveData();
           if(k==="name"){
             var iconEl = row.querySelector(".food-icon");
             if(iconEl) iconEl.textContent = detectFoodIcon(inp.value);
           }
-          if(k!=="name") recomputeCarnes();
+          if(k!=="name") recomputeCompras();
           renderResumen();
         });
       });
       row.querySelector("select[data-k='unidad']").addEventListener("change", function(){
         var i2 = +row.dataset.idx;
-        data.meats[i2].unidad = this.value;
+        data.items[i2].unidad = this.value;
         saveData();
-        buildCarnes();
+        buildCompras();
         renderResumen();
       });
       row.querySelector(".del").addEventListener("click", function(){
-        if(data.meats.length<=1) return;
-        data.meats.splice(+row.dataset.idx,1);
-        saveData(); buildCarnes(); renderResumen();
+        if(data.items.length<=1) return;
+        data.items.splice(+row.dataset.idx,1);
+        saveData(); buildCompras(); renderResumen();
       });
-      meatRowsEl.appendChild(row);
+      comprasRowsEl.appendChild(row);
     });
-    recomputeCarnes();
+    recomputeCompras();
   }
 
-  document.getElementById("addMeat").addEventListener("click", function(){
-    data.meats.push({name:"Nuevo corte", kg:0, precio:0, unidad:"kg"});
-    saveData(); buildCarnes(); renderResumen();
+  document.getElementById("addCompra").addEventListener("click", function(){
+    data.items.push({name:"Nuevo producto", cantidad:0, precio:0, unidad:"kg"});
+    saveData(); buildCompras(); renderResumen();
   });
 
-  function recomputeCarnes(){
+  // arma el mensaje de "cuadra / falta / sobra" comparando el total de
+  // compras contra lo que las familias dicen haber gastado. Se usa arriba en
+  // Compras (para verlo mientras se va cargando) y de nuevo en Pago por
+  // Familia (para la revision final) -mismo calculo, un solo lugar.
+  function buildGastoCheckMessage(totalCompras, sumGasto){
+    var dif = totalCompras - sumGasto;
+    if(Math.abs(dif) < 1){
+      return { className:"note ok", text:"OK: lo que las familias dicen haber gastado (" + money(sumGasto) + ") cuadra con el total de las compras." };
+    }else if(dif > 0){
+      return { className:"note bad", text:"Falta anotar " + money(dif) + ": hay compras que ninguna familia registró haber pagado en \"Ya gastó\" (sección Familias). Puede ser plata que salió del fondo común de las cuotas, o que a alguien se le olvidó anotar lo que gastó." };
+    }else{
+      return { className:"note bad", text:"Sobran " + money(-dif) + ": las familias dicen haber gastado más que el total de compras registradas. Revisa si falta agregar algún producto, o si algún \"Ya gastó\" está mal escrito." };
+    }
+  }
+
+  function recomputeCompras(){
     var personas = totalPersonas();
-    var rows = meatRowsEl.querySelectorAll(".row");
-    var totGramosPP=0, totKg=0, totSub=0;
-    data.meats.forEach(function(m,i){
-      var weightKg = meatWeightKg(m);
-      var gramosPP = personas>0 ? (weightKg*1000/personas) : 0;
-      var subtotal = m.kg * m.precio;
-      totGramosPP += gramosPP; totKg += weightKg; totSub += subtotal;
+    var rows = comprasRowsEl.querySelectorAll(".row");
+    var totSub=0, totMeatGramosPP=0;
+    data.items.forEach(function(it,i){
+      var subtotal = it.cantidad * it.precio;
+      totSub += subtotal;
+
+      var perPersonaTxt;
+      if(personas<=0){
+        perPersonaTxt = "—";
+      }else if((it.unidad||"kg")==="un"){
+        perPersonaTxt = num(it.cantidad/personas, 2) + " un";
+      }else{
+        perPersonaTxt = num((it.cantidad*1000)/personas, 0) + " g";
+      }
+      if(isMeatIcon(detectFoodIcon(it.name)) && personas>0){
+        totMeatGramosPP += itemWeightKg(it)*1000/personas;
+      }
+
       var row = rows[i];
       if(row){
-        row.querySelector(".gpOut").value = num(gramosPP,0);
+        row.querySelector(".ppOut").value = perPersonaTxt;
         row.querySelector(".subOut").value = money(subtotal);
       }
     });
-    document.getElementById("meatTotals").innerHTML =
-      "Kg totales: <b>"+num(totKg,2)+"</b> · Subtotal carnes: <b>"+money(totSub)+"</b>";
+
+    document.getElementById("comprasTotals").innerHTML = "Total compras: <b>"+money(totSub)+"</b>";
+    var topTotalEl = document.getElementById("comprasTotalTop");
+    if(topTotalEl) topTotalEl.textContent = money(totSub);
 
     var chk = document.getElementById("meatCheck");
-    var totRound = Math.round(totGramosPP);
-    if(totRound>=480 && totRound<=520){
-      chk.className="note ok"; chk.textContent="OK: está quedando "+totRound+" g por persona (cerca de los 500 g recomendados).";
+    var totRound = Math.round(totMeatGramosPP);
+    if(totRound<=0){
+      chk.className="note"; chk.textContent="Aún no hay carnes con precio y cantidad cargados para calcular gramos por persona.";
+    }else if(totRound>=480 && totRound<=520){
+      chk.className="note ok"; chk.textContent="OK: entre las carnes está quedando "+totRound+" g por persona (cerca de los 500 g recomendados).";
     }else if(totRound>520){
-      chk.className="note bad"; chk.textContent="Va quedando bastante: "+totRound+" g por persona (más de 500 g). Puedes comprar menos si quieres.";
+      chk.className="note bad"; chk.textContent="Va quedando bastante: "+totRound+" g de carne por persona (más de 500 g). Puedes comprar menos si quieres.";
     }else{
-      chk.className="note bad"; chk.textContent="Va quedando poco: "+totRound+" g por persona (menos de 500 g). Puede que falte carne.";
+      chk.className="note bad"; chk.textContent="Va quedando poco: "+totRound+" g de carne por persona (menos de 500 g). Puede que falte carne.";
     }
+
+    var sumGasto = 0;
+    data.families.forEach(function(f){ sumGasto += f.gastoPropio||0; });
+    var msg = buildGastoCheckMessage(totSub, sumGasto);
+    var topNote = document.getElementById("gastoCheckTop");
+    if(topNote){ topNote.className = msg.className; topNote.textContent = msg.text; }
+
     return totSub;
   }
-
-  // ---------- otras compras ----------
-  var extraRowsEl = document.getElementById("extraRows");
-  function buildExtras(){
-    extraRowsEl.innerHTML = "";
-    data.extras.forEach(function(e,i){
-      var row = document.createElement("div");
-      row.className = "row";
-      row.dataset.idx = i;
-      var unidad = e.unidad || "kg";
-      row.innerHTML =
-        '<div class="field grow"><label>Producto</label>' +
-          '<div class="name-with-icon">' +
-            '<span class="food-icon">'+detectFoodIcon(e.name)+'</span>' +
-            '<input type="text" data-k="name" value="'+escapeHtml(e.name)+'">' +
-          '</div>' +
-        '</div>' +
-        '<div class="field"><label>Se vende por</label>' +
-          '<select data-k="unidad">' +
-            '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
-            '<option value="un"'+(unidad==="un"?" selected":"")+'>Unidad</option>' +
-          '</select>' +
-        '</div>' +
-        '<div class="field num"><label class="qtyLabel">'+(unidad==="un"?"Cantidad (un)":"Cantidad (kg)")+'</label><input type="number" min="0" step="0.1" inputmode="decimal" data-k="cantidad" value="'+e.cantidad+'"></div>' +
-        '<div class="field money"><label class="priceLabel">'+(unidad==="un"?"Precio x unidad":"Precio x kilo")+'</label><input type="number" min="0" inputmode="numeric" data-k="precio" value="'+e.precio+'"></div>' +
-        '<div class="field money"><label>Subtotal</label><input type="text" class="subOut" readonly></div>' +
-        '<button class="del" type="button" title="Eliminar producto">✕</button>';
-
-      row.querySelectorAll("input:not([readonly])").forEach(function(inp){
-        inp.addEventListener("input", function(){
-          var i2 = +row.dataset.idx, k = inp.dataset.k;
-          data.extras[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
-          saveData();
-          if(k==="name"){
-            var iconEl = row.querySelector(".food-icon");
-            if(iconEl) iconEl.textContent = detectFoodIcon(inp.value);
-          }
-          recomputeExtras();
-          renderResumen();
-        });
-      });
-      row.querySelector("select[data-k='unidad']").addEventListener("change", function(){
-        var i2 = +row.dataset.idx;
-        var val = this.value;
-        data.extras[i2].unidad = val;
-        row.querySelector(".qtyLabel").textContent = val==="un" ? "Cantidad (un)" : "Cantidad (kg)";
-        row.querySelector(".priceLabel").textContent = val==="un" ? "Precio x unidad" : "Precio x kilo";
-        saveData();
-        renderResumen();
-      });
-      row.querySelector(".del").addEventListener("click", function(){
-        if(data.extras.length<=1) return;
-        data.extras.splice(+row.dataset.idx,1);
-        saveData(); buildExtras(); renderResumen();
-      });
-      extraRowsEl.appendChild(row);
-    });
-    recomputeExtras();
-  }
-
-  function recomputeExtras(){
-    var rows = extraRowsEl.querySelectorAll(".row");
-    var totSub=0;
-    data.extras.forEach(function(e,i){
-      var subtotal = e.cantidad*e.precio;
-      totSub += subtotal;
-      var row = rows[i];
-      if(row) row.querySelector(".subOut").value = money(subtotal);
-    });
-    document.getElementById("extraTotals").innerHTML = "Subtotal otras compras: <b>"+money(totSub)+"</b>";
-    return totSub;
-  }
-
-  document.getElementById("addExtra").addEventListener("click", function(){
-    data.extras.push({name:"Otro", cantidad:0, precio:0, unidad:"kg"});
-    saveData(); buildExtras(); renderResumen();
-  });
 
   // frase tipo "2 adultos + 1 niño = 2.5 cuotas", para que cada familia entienda
   // de donde sale su numero de cuotas sin tener que preguntar.
@@ -972,11 +980,8 @@
   function computeTotals(){
     var personas = totalPersonas();
     var cuotas = totalCuotas();
-    var totCarnes = 0;
-    data.meats.forEach(function(m){ totCarnes += m.kg*m.precio; });
-    var totExtras = 0;
-    data.extras.forEach(function(e){ totExtras += e.cantidad*e.precio; });
-    var totalCompras = totCarnes + totExtras;
+    var totalCompras = 0;
+    data.items.forEach(function(it){ totalCompras += it.cantidad*it.precio; });
     var valorCuota = cuotas>0 ? totalCompras/cuotas : 0;
     return { personas:personas, cuotas:cuotas, totalCompras:totalCompras, valorCuota:valorCuota, valorNino:valorCuota/2 };
   }
@@ -1072,36 +1077,27 @@
       verify.className="note bad"; verify.textContent="Revisa: la suma por familia no cuadra con el total de compras.";
     }
 
-    // chequeo aparte: lo que las familias DICEN haber gastado ("Ya gastó",
-    // un numero que se escribe a mano) puede no coincidir con el total real
-    // de las compras (que sale de los items cargados) -esto avisa la
-    // diferencia exacta, para pillar un monto sin asignar o mal escrito.
+    // mismo chequeo que arriba en Compras (buildGastoCheckMessage): lo que
+    // las familias DICEN haber gastado vs. el total real de las compras.
     var verifyGasto = document.getElementById("verifyGastoNote");
-    var difGasto = t.totalCompras - sumPago;
-    if(Math.abs(difGasto) < 1){
-      verifyGasto.className = "note ok";
-      verifyGasto.textContent = "OK: lo que las familias dicen haber gastado (" + money(sumPago) + ") cuadra con el total de las compras.";
-    }else if(difGasto > 0){
-      verifyGasto.className = "note bad";
-      verifyGasto.textContent = "Atención: hay " + money(difGasto) + " en compras que ninguna familia registró haber pagado en \"Ya gastó\". Puede ser plata que salió del fondo común de las cuotas, o que a alguien se le olvidó anotar lo que gastó.";
-    }else{
-      verifyGasto.className = "note bad";
-      verifyGasto.textContent = "Atención: las familias dicen haber gastado " + money(-difGasto) + " MÁS que el total de compras registradas. Revisa si falta agregar algún producto, o si algún \"Ya gastó\" está mal escrito.";
-    }
+    var msgGasto = buildGastoCheckMessage(t.totalCompras, sumPago);
+    verifyGasto.className = msgGasto.className;
+    verifyGasto.textContent = msgGasto.text;
   }
 
   // ---------- reparto por producto (carnes + otras compras) ----------
   // "kg" = se compra por peso (siempre las carnes, y las otras compras que elijas);
   // "un" = se compra por unidad (ej. longaniza artesanal que se vende por pieza).
   function getAllPurchasedItems(){
-    var items = [];
-    data.meats.forEach(function(m){
-      items.push({name:m.name, displayName:detectFoodIcon(m.name)+" "+(m.name||"(sin nombre)"), kg:m.kg, precio:m.precio, unidad:m.unidad||"kg"});
+    return data.items.map(function(it){
+      return {
+        name: it.name,
+        displayName: detectFoodIcon(it.name)+" "+(it.name||"(sin nombre)"),
+        kg: it.cantidad,
+        precio: it.precio,
+        unidad: it.unidad||"kg"
+      };
     });
-    data.extras.forEach(function(e){
-      items.push({name:e.name, displayName:detectFoodIcon(e.name)+" "+(e.name||"(sin nombre)"), kg:e.cantidad, precio:e.precio, unidad:e.unidad||"kg"});
-    });
-    return items;
   }
 
   // cuanto gasto/aporto una familia: un solo numero que se escribe directo
@@ -1412,9 +1408,7 @@
 
   function renderAll(){
     buildFamilias();
-    buildCarnes();
-    buildExtras();
-    recomputeCarnes();
+    buildCompras();
     renderResumen();
   }
   renderAll();
