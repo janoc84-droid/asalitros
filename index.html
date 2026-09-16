@@ -154,6 +154,7 @@
   }
   input:focus,select:focus{ outline:2px solid var(--accent); outline-offset:1px; }
   input[readonly]{ color:var(--gold); background:var(--surface-3); font-weight:700; }
+  input.lockable[readonly]{ cursor:pointer; }
 
   .chip{
     background:var(--surface-3);
@@ -630,6 +631,32 @@
     return n.toLocaleString("es-CL", {minimumFractionDigits:d, maximumFractionDigits:d});
   }
 
+  // campos de plata (precio, ya gastó) son texto, no <input type=number>: asi se
+  // les puede mostrar "$" y el separador de miles ("." en Chile) mientras se
+  // escriben, y de paso ya no tienen las flechas nativas de subir/bajar.
+  function moneyDigits(str){
+    var d = String(str||"").replace(/[^0-9]/g,"");
+    return d ? parseInt(d,10) : 0;
+  }
+
+  // los campos numericos (incluidos los de plata) se pueden "bloquear" con Enter:
+  // el usuario ya termino de escribir ese valor, asi que el scroll del mouse o
+  // las flechas de subir/bajar no lo deben mover mas por accidente. Un clic
+  // encima del valor lo vuelve a dejar editable.
+  function wireLockable(inp){
+    if(!inp.classList.contains("lockable")) return;
+    inp.addEventListener("keydown", function(e){
+      if(e.key === "Enter"){
+        e.preventDefault();
+        inp.readOnly = true;
+        inp.blur();
+      }
+    });
+    inp.addEventListener("click", function(){
+      if(inp.readOnly) inp.readOnly = false;
+    });
+  }
+
   // Nota de diseño: las filas del DOM se construyen (build) UNA sola vez, y solo
   // se reconstruyen cuando se agrega/quita una fila. Escribir en un input jamás
   // reconstruye esa fila: solo actualiza los campos de solo lectura y los totales.
@@ -662,11 +689,11 @@
         '</div>' +
         '<div class="field num">' +
           '<label>Adultos</label>' +
-          '<input type="number" min="0" inputmode="numeric" data-k="adultos" value="'+f.adultos+'">' +
+          '<input type="number" class="lockable" min="0" inputmode="numeric" data-k="adultos" value="'+f.adultos+'">' +
         '</div>' +
         '<div class="field num">' +
           '<label>Niños</label>' +
-          '<input type="number" min="0" inputmode="numeric" data-k="ninos" value="'+f.ninos+'">' +
+          '<input type="number" class="lockable" min="0" inputmode="numeric" data-k="ninos" value="'+f.ninos+'">' +
         '</div>' +
         '<div class="field">' +
           '<label>Cuotas</label>' +
@@ -674,19 +701,32 @@
         '</div>' +
         '<div class="field money">' +
           '<label>Ya gastó</label>' +
-          '<input type="number" min="0" inputmode="numeric" data-k="gastoPropio" value="'+(f.gastoPropio||0)+'">' +
+          '<input type="text" class="lockable" inputmode="numeric" data-k="gastoPropio" value="'+money(f.gastoPropio||0)+'">' +
         '</div>' +
         '<button class="del" type="button" title="Eliminar familia">✕</button>';
 
       row.querySelectorAll("input").forEach(function(inp){
         inp.addEventListener("input", function(){
           var i2 = +row.dataset.idx, k = inp.dataset.k;
-          data.families[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          if(k==="gastoPropio"){
+            var digits = inp.value.replace(/[^0-9]/g,"");
+            var n = digits ? parseInt(digits,10) : 0;
+            data.families[i2][k] = n;
+            inp.value = digits ? money(n) : "";
+            var pos = inp.value.length;
+            inp.setSelectionRange(pos,pos);
+          }else{
+            data.families[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          }
           saveData();
           recomputeFamilias();
           recomputeCompras();
           renderResumen();
         });
+        if(inp.dataset.k==="gastoPropio"){
+          inp.addEventListener("blur", function(){ if(inp.value==="") inp.value = money(0); });
+        }
+        wireLockable(inp);
       });
       row.querySelector(".del").addEventListener("click", function(){
         if(data.families.length<=1) return;
@@ -841,7 +881,7 @@
       var qtyLabel = unidad==="un" ? "Cantidad (un)" : "Cantidad (kg)";
       var priceLabel = unidad==="un" ? "Precio x unidad" : "Precio x kilo";
       var pesoField = unidad==="un"
-        ? '<div class="field num"><label>Peso x unidad (g)</label><input type="number" min="0" step="10" inputmode="numeric" data-k="pesoUnidad" value="'+(it.pesoUnidad||0)+'"></div>'
+        ? '<div class="field num"><label>Peso x unidad (g)</label><input type="number" class="lockable" min="0" step="10" inputmode="numeric" data-k="pesoUnidad" value="'+(it.pesoUnidad||0)+'"></div>'
         : "";
 
       row.innerHTML =
@@ -857,17 +897,26 @@
             '<option value="un"'+(unidad==="un"?" selected":"")+'>Unidad</option>' +
           '</select>' +
         '</div>' +
-        '<div class="field num"><label>'+qtyLabel+'</label><input type="number" min="0" step="0.1" inputmode="decimal" data-k="cantidad" value="'+it.cantidad+'"></div>' +
+        '<div class="field num"><label>'+qtyLabel+'</label><input type="number" class="lockable" min="0" step="0.1" inputmode="decimal" data-k="cantidad" value="'+it.cantidad+'"></div>' +
         pesoField +
         '<div class="field num"><label>Por persona</label><input type="text" class="ppOut" readonly></div>' +
-        '<div class="field money"><label>'+priceLabel+'</label><input type="number" min="0" inputmode="numeric" data-k="precio" value="'+it.precio+'"></div>' +
+        '<div class="field money"><label>'+priceLabel+'</label><input type="text" class="lockable" inputmode="numeric" data-k="precio" value="'+money(it.precio)+'"></div>' +
         '<div class="field money"><label>Subtotal</label><input type="text" class="subOut" readonly></div>' +
         '<button class="del" type="button" title="Eliminar producto">✕</button>';
 
       row.querySelectorAll("input").forEach(function(inp){
         inp.addEventListener("input", function(){
           var i2 = +row.dataset.idx, k = inp.dataset.k;
-          data.items[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          if(k==="precio"){
+            var digits = inp.value.replace(/[^0-9]/g,"");
+            var n = digits ? parseInt(digits,10) : 0;
+            data.items[i2][k] = n;
+            inp.value = digits ? money(n) : "";
+            var pos = inp.value.length;
+            inp.setSelectionRange(pos,pos);
+          }else{
+            data.items[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          }
           saveData();
           if(k==="name"){
             var iconEl = row.querySelector(".food-icon");
@@ -876,6 +925,10 @@
           if(k!=="name") recomputeCompras();
           renderResumen();
         });
+        if(inp.dataset.k==="precio"){
+          inp.addEventListener("blur", function(){ if(inp.value==="") inp.value = money(0); });
+        }
+        wireLockable(inp);
       });
       row.querySelector("select[data-k='unidad']").addEventListener("change", function(){
         var i2 = +row.dataset.idx;
