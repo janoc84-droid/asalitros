@@ -93,7 +93,7 @@
     display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
   }
   .stat-bar{
-    display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); gap:10px;
     margin-top:10px;
   }
   .stat{
@@ -334,7 +334,8 @@
     </div>
     <div class="stat-bar">
       <div class="stat"><div class="k">Total compras</div><div class="v" id="topTotal">$ 0</div></div>
-      <div class="stat"><div class="k">Valor por cuota</div><div class="v" id="topCuota">$ 0</div></div>
+      <div class="stat"><div class="k">Cuota adulto</div><div class="v" id="topCuotaAdulto">$ 0</div></div>
+      <div class="stat"><div class="k">Cuota niño</div><div class="v" id="topCuotaNino">$ 0</div></div>
     </div>
   </div>
 </header>
@@ -1035,7 +1036,8 @@
 
     renderComprasResumen();
     document.getElementById("topTotal").textContent = money(t.totalCompras);
-    document.getElementById("topCuota").textContent = money(t.valorCuota);
+    document.getElementById("topCuotaAdulto").textContent = money(t.valorCuota);
+    document.getElementById("topCuotaNino").textContent = money(t.valorNino);
 
     document.getElementById("rPersonas").textContent = t.personas;
     document.getElementById("rCuotas").textContent = num(t.cuotas,1);
