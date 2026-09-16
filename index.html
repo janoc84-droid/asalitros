@@ -205,6 +205,7 @@
     background:var(--surface-3); border:1px solid var(--border);
     border-radius:10px; padding:14px 16px; margin-top:14px;
   }
+  .big-total[hidden]{ display:none; }
   .big-total .label{ font-family:Georgia,serif; font-size:1rem; }
   .big-total .value{ font-size:1.7rem; font-weight:700; color:var(--gold); font-variant-numeric:tabular-nums; }
 
@@ -248,6 +249,8 @@
   }
   table.fam-table td{ padding:8px; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums; }
   table.fam-table td.money{ color:var(--gold); font-weight:700; text-align:right; }
+  table.fam-table td.money.saldo-ok{ color:var(--ok); }
+  table.fam-table td.money.saldo-neutral{ color:var(--text-dim); font-weight:600; }
   table.fam-table td.center{ text-align:center; }
   .table-wrap{ overflow-x:auto; }
   tfoot td{ font-weight:700; color:var(--text); border-top:2px solid var(--border); border-bottom:none; }
@@ -409,15 +412,15 @@
     <div class="table-wrap" style="margin-top:16px;">
       <table class="fam-table" id="famTable">
         <thead>
-          <tr><th>Familia</th><th class="center">Cuotas</th><th style="text-align:right">Total a pagar</th><th></th></tr>
+          <tr><th>Familia</th><th class="center">Cuotas</th><th style="text-align:right">Debe</th><th style="text-align:right">Ya pagó</th><th style="text-align:right">Saldo</th><th></th></tr>
         </thead>
         <tbody id="rFamBody"></tbody>
         <tfoot>
-          <tr><td>Totales</td><td class="center" id="rFamCuotasTot">0</td><td class="money" id="rFamTotalTot">$ 0</td><td></td></tr>
+          <tr><td>Totales</td><td class="center" id="rFamCuotasTot">0</td><td class="money" id="rFamDebeTot">$ 0</td><td class="money" id="rFamPagoTot">$ 0</td><td class="money" id="rFamSaldoTot">$ 0</td><td></td></tr>
         </tfoot>
       </table>
     </div>
-    <p class="sec-hint" style="margin:8px 0 0;">Toca el 📤 de una familia para mandarle solo su parte (incluye su detalle por producto).</p>
+    <p class="sec-hint" style="margin:8px 0 0;">"Ya pagó" suma lo que cada familia puso de su bolsillo (campo "Pagado por" en Carnes/Otras compras). El "Saldo" es lo que le falta poner, o lo que le deben devolver si puso de más. Toca el 📤 de una familia para mandarle solo su parte.</p>
     <div class="note" id="verifyNote"></div>
   </section>
 
@@ -453,6 +456,11 @@
     <span class="value" id="famShareTotal">$ 0</span>
   </div>
   <p class="share-note" id="famShareMath" style="margin:6px 0 0; text-align:right;"></p>
+  <p class="share-note" id="famSharePagoLine" style="margin:10px 0 0;" hidden></p>
+  <div class="big-total" id="famShareSaldoWrap" style="margin-top:8px;" hidden>
+    <span class="label" id="famShareSaldoLabel">Saldo</span>
+    <span class="value" id="famShareSaldoValue">$ 0</span>
+  </div>
   <div class="bar-chart" id="famShareChart" style="margin-top:12px;"></div>
   <table class="fam-table" style="margin-top:12px;">
     <thead><tr><th>Le corresponde</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Valor</th></tr></thead>
@@ -789,6 +797,7 @@
             '<input type="text" data-k="name" value="'+escapeHtml(m.name)+'">' +
           '</div>' +
         '</div>' +
+        '<div class="field"><label>Pagado por</label><input type="text" data-k="pagadoPor" placeholder="Familia..." value="'+escapeHtml(m.pagadoPor||"")+'"></div>' +
         '<div class="field"><label>Se vende por</label>' +
           '<select data-k="unidad">' +
             '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
@@ -802,16 +811,17 @@
         '<div class="field money"><label>Subtotal</label><input type="text" class="subOut" readonly></div>' +
         '<button class="del" type="button" title="Eliminar corte">✕</button>';
 
+      var TEXT_FIELDS_M = {name:true, pagadoPor:true};
       row.querySelectorAll("input").forEach(function(inp){
         inp.addEventListener("input", function(){
           var i2 = +row.dataset.idx, k = inp.dataset.k;
-          data.meats[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          data.meats[i2][k] = TEXT_FIELDS_M[k] ? inp.value : Math.max(0, parseFloat(inp.value)||0);
           saveData();
           if(k==="name"){
             var iconEl = row.querySelector(".food-icon");
             if(iconEl) iconEl.textContent = detectFoodIcon(inp.value);
           }
-          if(k!=="name") recomputeCarnes();
+          if(!TEXT_FIELDS_M[k]) recomputeCarnes();
           renderResumen();
         });
       });
@@ -833,7 +843,7 @@
   }
 
   document.getElementById("addMeat").addEventListener("click", function(){
-    data.meats.push({name:"Nuevo corte", kg:0, precio:0, unidad:"kg"});
+    data.meats.push({name:"Nuevo corte", kg:0, precio:0, unidad:"kg", pagadoPor:""});
     saveData(); buildCarnes(); renderResumen();
   });
 
@@ -883,6 +893,7 @@
             '<input type="text" data-k="name" value="'+escapeHtml(e.name)+'">' +
           '</div>' +
         '</div>' +
+        '<div class="field"><label>Pagado por</label><input type="text" data-k="pagadoPor" placeholder="Familia..." value="'+escapeHtml(e.pagadoPor||"")+'"></div>' +
         '<div class="field"><label>Se vende por</label>' +
           '<select data-k="unidad">' +
             '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
@@ -894,10 +905,11 @@
         '<div class="field money"><label>Subtotal</label><input type="text" class="subOut" readonly></div>' +
         '<button class="del" type="button" title="Eliminar producto">✕</button>';
 
+      var TEXT_FIELDS_E = {name:true, pagadoPor:true};
       row.querySelectorAll("input:not([readonly])").forEach(function(inp){
         inp.addEventListener("input", function(){
           var i2 = +row.dataset.idx, k = inp.dataset.k;
-          data.extras[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          data.extras[i2][k] = TEXT_FIELDS_E[k] ? inp.value : Math.max(0, parseFloat(inp.value)||0);
           saveData();
           if(k==="name"){
             var iconEl = row.querySelector(".food-icon");
@@ -940,7 +952,7 @@
   }
 
   document.getElementById("addExtra").addEventListener("click", function(){
-    data.extras.push({name:"Otro", cantidad:0, precio:0, unidad:"kg"});
+    data.extras.push({name:"Otro", cantidad:0, precio:0, unidad:"kg", pagadoPor:""});
     saveData(); buildExtras(); renderResumen();
   });
 
@@ -1027,26 +1039,34 @@
 
     var body = document.getElementById("rFamBody");
     body.innerHTML = "";
-    var sumCuotas=0, sumPagar=0;
+    var sumCuotas=0, sumDebe=0, sumPago=0, sumSaldo=0;
     data.families.forEach(function(f, i){
       var c = f.adultos + f.ninos*0.5;
-      var pagar = c*t.valorCuota;
-      sumCuotas += c; sumPagar += pagar;
+      var debe = c*t.valorCuota;
+      var yaPago = computeYaPago(f.name);
+      var saldo = debe - yaPago;
+      sumCuotas += c; sumDebe += debe; sumPago += yaPago; sumSaldo += saldo;
       var tr = document.createElement("tr");
       tr.dataset.idx = i;
       tr.innerHTML = "<td>"+escapeHtml(f.name||"(sin nombre)")+"</td>" +
         "<td class='center'>"+num(c,1)+"</td>" +
-        "<td class='money'>"+money(pagar)+"</td>" +
+        "<td class='money'>"+money(debe)+"</td>" +
+        "<td class='money'>"+(yaPago>0 ? money(yaPago) : "—")+"</td>" +
+        "<td class='money"+(Math.abs(saldo)<1 ? " saldo-neutral" : (saldo<0 ? " saldo-ok" : ""))+"'>"+
+          (Math.abs(saldo)<1 ? "Al día" : (saldo>0 ? money(saldo) : "Le devuelven "+money(-saldo)))+
+        "</td>" +
         "<td class='share-cell'><button type='button' class='share-fam-btn' title='Compartir con esta familia'>📤</button></td>";
       tr.querySelector(".share-fam-btn").addEventListener("click", function(e){ shareFamily(i, e.currentTarget); });
       body.appendChild(tr);
     });
     document.getElementById("rFamCuotasTot").textContent = num(sumCuotas,1);
-    document.getElementById("rFamTotalTot").textContent = money(sumPagar);
+    document.getElementById("rFamDebeTot").textContent = money(sumDebe);
+    document.getElementById("rFamPagoTot").textContent = money(sumPago);
+    document.getElementById("rFamSaldoTot").textContent = money(sumSaldo);
 
     var verify = document.getElementById("verifyNote");
-    if(Math.round(sumPagar)===Math.round(t.totalCompras)){
-      verify.className="note ok"; verify.textContent="OK: lo que pagan las familias cuadra con el total de compras.";
+    if(Math.round(sumDebe)===Math.round(t.totalCompras)){
+      verify.className="note ok"; verify.textContent="OK: lo que deben las familias cuadra con el total de compras.";
     }else{
       verify.className="note bad"; verify.textContent="Revisa: la suma por familia no cuadra con el total de compras.";
     }
@@ -1058,12 +1078,26 @@
   function getAllPurchasedItems(){
     var items = [];
     data.meats.forEach(function(m){
-      items.push({name:m.name, displayName:detectFoodIcon(m.name)+" "+(m.name||"(sin nombre)"), kg:m.kg, precio:m.precio, unidad:m.unidad||"kg"});
+      items.push({name:m.name, displayName:detectFoodIcon(m.name)+" "+(m.name||"(sin nombre)"), kg:m.kg, precio:m.precio, unidad:m.unidad||"kg", pagadoPor:m.pagadoPor||""});
     });
     data.extras.forEach(function(e){
-      items.push({name:e.name, displayName:detectFoodIcon(e.name)+" "+(e.name||"(sin nombre)"), kg:e.cantidad, precio:e.precio, unidad:e.unidad||"kg"});
+      items.push({name:e.name, displayName:detectFoodIcon(e.name)+" "+(e.name||"(sin nombre)"), kg:e.cantidad, precio:e.precio, unidad:e.unidad||"kg", pagadoPor:e.pagadoPor||""});
     });
     return items;
+  }
+
+  // cuanto puso de su bolsillo una familia (compara nombres sin importar
+  // mayusculas/espacios). Si nadie escribio "pagado por" en ningun item,
+  // esto da 0 para todos y el resumen queda igual que antes (nadie "ya pago").
+  function normNombre(s){ return String(s||"").trim().toLowerCase(); }
+  function computeYaPago(nombreFamilia){
+    var buscado = normNombre(nombreFamilia);
+    if(!buscado) return 0;
+    var total = 0;
+    getAllPurchasedItems().forEach(function(it){
+      if(normNombre(it.pagadoPor)===buscado) total += it.kg*it.precio;
+    });
+    return total;
   }
 
   function formatQty(qty, unidad){
@@ -1181,6 +1215,29 @@
     document.getElementById("famShareExplain").textContent = cuotaExplanation(f.adultos, f.ninos);
     document.getElementById("famShareMath").textContent =
       num(cuotas,1) + (cuotas===1 ? " cuota" : " cuotas") + " × " + money(t.valorCuota) + " = " + money(pagar);
+
+    var yaPago = computeYaPago(f.name);
+    var saldo = pagar - yaPago;
+    var pagoLine = document.getElementById("famSharePagoLine");
+    var saldoWrap = document.getElementById("famShareSaldoWrap");
+    if(yaPago>0){
+      pagoLine.hidden = false;
+      pagoLine.textContent = "Ya puso de su bolsillo: " + money(yaPago);
+      saldoWrap.hidden = false;
+      var lbl = document.getElementById("famShareSaldoLabel");
+      var val = document.getElementById("famShareSaldoValue");
+      if(Math.abs(saldo)<1){
+        lbl.textContent = "Saldo"; val.textContent = "Al día"; val.style.color = "var(--ok)";
+      }else if(saldo>0){
+        lbl.textContent = "Aún debe poner"; val.textContent = money(saldo); val.style.color = "";
+      }else{
+        lbl.textContent = "Le deben devolver"; val.textContent = money(-saldo); val.style.color = "var(--ok)";
+      }
+    }else{
+      pagoLine.hidden = true;
+      saldoWrap.hidden = true;
+    }
+
     renderItemsTable("famShareItemsBody", cuotas, t);
     var chartItems = getAllPurchasedItems().map(function(it){
       var perCuota = t.cuotas>0 ? it.kg/t.cuotas : 0;
