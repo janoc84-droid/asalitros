@@ -422,6 +422,7 @@
     </div>
     <p class="sec-hint" style="margin:8px 0 0;">"Ya pagó" es el campo "Ya gastó" que llenas en la sección Familias (arriba), no hace falta marcar producto por producto. El "Saldo" es lo que le falta poner, o lo que le deben devolver si puso de más. Toca el 📤 de una familia para mandarle solo su parte.</p>
     <div class="note" id="verifyNote"></div>
+    <div class="note" id="verifyGastoNote" style="margin-top:8px;"></div>
   </section>
 
   <!-- 6. HISTORIAL -->
@@ -1069,6 +1070,23 @@
       verify.className="note ok"; verify.textContent="OK: lo que deben las familias cuadra con el total de compras.";
     }else{
       verify.className="note bad"; verify.textContent="Revisa: la suma por familia no cuadra con el total de compras.";
+    }
+
+    // chequeo aparte: lo que las familias DICEN haber gastado ("Ya gastó",
+    // un numero que se escribe a mano) puede no coincidir con el total real
+    // de las compras (que sale de los items cargados) -esto avisa la
+    // diferencia exacta, para pillar un monto sin asignar o mal escrito.
+    var verifyGasto = document.getElementById("verifyGastoNote");
+    var difGasto = t.totalCompras - sumPago;
+    if(Math.abs(difGasto) < 1){
+      verifyGasto.className = "note ok";
+      verifyGasto.textContent = "OK: lo que las familias dicen haber gastado (" + money(sumPago) + ") cuadra con el total de las compras.";
+    }else if(difGasto > 0){
+      verifyGasto.className = "note bad";
+      verifyGasto.textContent = "Atención: hay " + money(difGasto) + " en compras que ninguna familia registró haber pagado en \"Ya gastó\". Puede ser plata que salió del fondo común de las cuotas, o que a alguien se le olvidó anotar lo que gastó.";
+    }else{
+      verifyGasto.className = "note bad";
+      verifyGasto.textContent = "Atención: las familias dicen haber gastado " + money(-difGasto) + " MÁS que el total de compras registradas. Revisa si falta agregar algún producto, o si algún \"Ya gastó\" está mal escrito.";
     }
   }
 
