@@ -420,7 +420,7 @@
         </tfoot>
       </table>
     </div>
-    <p class="sec-hint" style="margin:8px 0 0;">"Ya pagó" suma lo que cada familia puso de su bolsillo (campo "Pagado por" en Carnes/Otras compras). El "Saldo" es lo que le falta poner, o lo que le deben devolver si puso de más. Toca el 📤 de una familia para mandarle solo su parte.</p>
+    <p class="sec-hint" style="margin:8px 0 0;">"Ya pagó" es el campo "Ya gastó" que llenas en la sección Familias (arriba), no hace falta marcar producto por producto. El "Saldo" es lo que le falta poner, o lo que le deben devolver si puso de más. Toca el 📤 de una familia para mandarle solo su parte.</p>
     <div class="note" id="verifyNote"></div>
   </section>
 
@@ -662,6 +662,10 @@
           '<label>Cuotas</label>' +
           '<div class="chip">'+num(f.adultos+f.ninos*0.5,1)+'</div>' +
         '</div>' +
+        '<div class="field money">' +
+          '<label>Ya gastó</label>' +
+          '<input type="number" min="0" inputmode="numeric" data-k="gastoPropio" value="'+(f.gastoPropio||0)+'">' +
+        '</div>' +
         '<button class="del" type="button" title="Eliminar familia">✕</button>';
 
       row.querySelectorAll("input").forEach(function(inp){
@@ -797,7 +801,6 @@
             '<input type="text" data-k="name" value="'+escapeHtml(m.name)+'">' +
           '</div>' +
         '</div>' +
-        '<div class="field"><label>Pagado por</label><input type="text" data-k="pagadoPor" placeholder="Familia..." value="'+escapeHtml(m.pagadoPor||"")+'"></div>' +
         '<div class="field"><label>Se vende por</label>' +
           '<select data-k="unidad">' +
             '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
@@ -811,17 +814,16 @@
         '<div class="field money"><label>Subtotal</label><input type="text" class="subOut" readonly></div>' +
         '<button class="del" type="button" title="Eliminar corte">✕</button>';
 
-      var TEXT_FIELDS_M = {name:true, pagadoPor:true};
       row.querySelectorAll("input").forEach(function(inp){
         inp.addEventListener("input", function(){
           var i2 = +row.dataset.idx, k = inp.dataset.k;
-          data.meats[i2][k] = TEXT_FIELDS_M[k] ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          data.meats[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
           saveData();
           if(k==="name"){
             var iconEl = row.querySelector(".food-icon");
             if(iconEl) iconEl.textContent = detectFoodIcon(inp.value);
           }
-          if(!TEXT_FIELDS_M[k]) recomputeCarnes();
+          if(k!=="name") recomputeCarnes();
           renderResumen();
         });
       });
@@ -843,7 +845,7 @@
   }
 
   document.getElementById("addMeat").addEventListener("click", function(){
-    data.meats.push({name:"Nuevo corte", kg:0, precio:0, unidad:"kg", pagadoPor:""});
+    data.meats.push({name:"Nuevo corte", kg:0, precio:0, unidad:"kg"});
     saveData(); buildCarnes(); renderResumen();
   });
 
@@ -893,7 +895,6 @@
             '<input type="text" data-k="name" value="'+escapeHtml(e.name)+'">' +
           '</div>' +
         '</div>' +
-        '<div class="field"><label>Pagado por</label><input type="text" data-k="pagadoPor" placeholder="Familia..." value="'+escapeHtml(e.pagadoPor||"")+'"></div>' +
         '<div class="field"><label>Se vende por</label>' +
           '<select data-k="unidad">' +
             '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
@@ -905,11 +906,10 @@
         '<div class="field money"><label>Subtotal</label><input type="text" class="subOut" readonly></div>' +
         '<button class="del" type="button" title="Eliminar producto">✕</button>';
 
-      var TEXT_FIELDS_E = {name:true, pagadoPor:true};
       row.querySelectorAll("input:not([readonly])").forEach(function(inp){
         inp.addEventListener("input", function(){
           var i2 = +row.dataset.idx, k = inp.dataset.k;
-          data.extras[i2][k] = TEXT_FIELDS_E[k] ? inp.value : Math.max(0, parseFloat(inp.value)||0);
+          data.extras[i2][k] = (k==="name") ? inp.value : Math.max(0, parseFloat(inp.value)||0);
           saveData();
           if(k==="name"){
             var iconEl = row.querySelector(".food-icon");
@@ -952,7 +952,7 @@
   }
 
   document.getElementById("addExtra").addEventListener("click", function(){
-    data.extras.push({name:"Otro", cantidad:0, precio:0, unidad:"kg", pagadoPor:""});
+    data.extras.push({name:"Otro", cantidad:0, precio:0, unidad:"kg"});
     saveData(); buildExtras(); renderResumen();
   });
 
@@ -1043,7 +1043,7 @@
     data.families.forEach(function(f, i){
       var c = f.adultos + f.ninos*0.5;
       var debe = c*t.valorCuota;
-      var yaPago = computeYaPago(f.name);
+      var yaPago = computeYaPago(f);
       var saldo = debe - yaPago;
       sumCuotas += c; sumDebe += debe; sumPago += yaPago; sumSaldo += saldo;
       var tr = document.createElement("tr");
@@ -1078,27 +1078,18 @@
   function getAllPurchasedItems(){
     var items = [];
     data.meats.forEach(function(m){
-      items.push({name:m.name, displayName:detectFoodIcon(m.name)+" "+(m.name||"(sin nombre)"), kg:m.kg, precio:m.precio, unidad:m.unidad||"kg", pagadoPor:m.pagadoPor||""});
+      items.push({name:m.name, displayName:detectFoodIcon(m.name)+" "+(m.name||"(sin nombre)"), kg:m.kg, precio:m.precio, unidad:m.unidad||"kg"});
     });
     data.extras.forEach(function(e){
-      items.push({name:e.name, displayName:detectFoodIcon(e.name)+" "+(e.name||"(sin nombre)"), kg:e.cantidad, precio:e.precio, unidad:e.unidad||"kg", pagadoPor:e.pagadoPor||""});
+      items.push({name:e.name, displayName:detectFoodIcon(e.name)+" "+(e.name||"(sin nombre)"), kg:e.cantidad, precio:e.precio, unidad:e.unidad||"kg"});
     });
     return items;
   }
 
-  // cuanto puso de su bolsillo una familia (compara nombres sin importar
-  // mayusculas/espacios). Si nadie escribio "pagado por" en ningun item,
-  // esto da 0 para todos y el resumen queda igual que antes (nadie "ya pago").
-  function normNombre(s){ return String(s||"").trim().toLowerCase(); }
-  function computeYaPago(nombreFamilia){
-    var buscado = normNombre(nombreFamilia);
-    if(!buscado) return 0;
-    var total = 0;
-    getAllPurchasedItems().forEach(function(it){
-      if(normNombre(it.pagadoPor)===buscado) total += it.kg*it.precio;
-    });
-    return total;
-  }
+  // cuanto gasto/aporto una familia: un solo numero que se escribe directo
+  // en la seccion de Familias (campo "Ya gasto"), sin tener que marcar
+  // item por item -asi no hay lio si dos familias compraron lo mismo.
+  function computeYaPago(f){ return (f && f.gastoPropio) || 0; }
 
   function formatQty(qty, unidad){
     if(unidad==="un"){
@@ -1216,7 +1207,7 @@
     document.getElementById("famShareMath").textContent =
       num(cuotas,1) + (cuotas===1 ? " cuota" : " cuotas") + " × " + money(t.valorCuota) + " = " + money(pagar);
 
-    var yaPago = computeYaPago(f.name);
+    var yaPago = computeYaPago(f);
     var saldo = pagar - yaPago;
     var pagoLine = document.getElementById("famSharePagoLine");
     var saldoWrap = document.getElementById("famShareSaldoWrap");
