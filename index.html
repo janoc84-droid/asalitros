@@ -1202,6 +1202,35 @@
     return v ? v.trim() : "#ffffff";
   }
 
+  // entrega la imagen ya generada en un navegador normal (GitHub Pages).
+  // En celular abre el menu de compartir (WhatsApp, etc.), igual que la APK;
+  // en computador descarga el PNG directo. window.open() no sirve aca: para
+  // cuando termina de generarse la imagen el navegador ya no considera que
+  // hubo un clic del usuario y bloquea la ventana emergente.
+  async function deliverImageBlob(blob, opts){
+    var isTouch = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    if(isTouch && navigator.canShare && typeof File === "function"){
+      var file = new File([blob], opts.fileName, {type:"image/png"});
+      if(navigator.canShare({files:[file]})){
+        try{
+          await navigator.share({files:[file], title:opts.title, text:opts.text});
+          return;
+        }catch(err){
+          if(err && err.name === "AbortError") return; // cerro el menu de compartir a proposito
+          // cualquier otro fallo: sigue y descarga el archivo
+        }
+      }
+    }
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = opts.fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+  }
+
   async function shareImageElement(el, opts){
     if(typeof html2canvas !== "function"){
       alert("No se pudo generar la imagen (falta la librería de captura).");
@@ -1214,18 +1243,15 @@
       if(!blob) throw new Error("No se pudo generar la imagen");
 
       var downloads = null;
-      try{ downloads = await claude.use("downloads"); }catch(e){}
+      if(typeof claude !== "undefined"){
+        try{ downloads = await claude.use("downloads"); }catch(e){}
+      }
 
       if(downloads){
         await downloads.save({ filename: opts.fileName, data: blob });
         alert('Imagen guardada. Ábrela desde tus descargas para enviarla por WhatsApp o donde quieras.');
       } else {
-        // sin la capacidad de descargas disponible en esta vista: no hay forma
-        // de ofrecer el archivo, asi que al menos lo dejamos abierto para que
-        // el viewer pueda guardarlo el mismo con "mantener presionado > guardar imagen".
-        var url = URL.createObjectURL(blob);
-        window.open(url, "_blank");
-        setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+        await deliverImageBlob(blob, opts);
       }
     }catch(err){
       if(!(err && String(err.message||err).toLowerCase().indexOf("cancel")>=0) &&
