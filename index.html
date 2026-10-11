@@ -355,6 +355,13 @@
 
 <main class="wrap">
 
+  <!-- RESUMEN DE PROGRESO: no es un paso mas, es un vistazo rapido y siempre
+       visible de que falta antes del evento (no tiene numero de seccion). -->
+  <section class="card" id="progresoCard">
+    <div class="sec-head"><div class="sec-num">✅</div><h2>Antes del evento</h2></div>
+    <div id="progresoList" style="display:flex; flex-direction:column; gap:8px;"></div>
+  </section>
+
   <!-- 1. EVENTO Y FAMILIAS -->
   <section class="card">
     <div class="sec-head"><div class="sec-num">1</div><h2>Evento y familias</h2></div>
@@ -1313,6 +1320,50 @@
     }
   }
 
+  // vistazo rapido de "que falta antes del evento": junta en un solo lugar
+  // avisos que ya existen por separado en Compras, Tareas y Pago por familia,
+  // para no tener que ir seccion por seccion a revisar si ya esta todo listo.
+  function renderProgreso(){
+    var el = document.getElementById("progresoList");
+    if(!el) return;
+    var items = [];
+
+    var sinPrecio = data.items.filter(function(it){ return (it.cantidad||0)>0 && (!it.precio || it.precio<=0); }).length;
+    if(sinPrecio>0){
+      items.push(sinPrecio + (sinPrecio===1 ? " producto todavía sin precio en Compras." : " productos todavía sin precio en Compras."));
+    }
+
+    var tareasPend = (data.tareas||[]).filter(function(tt){ return !tt.lista; }).length;
+    if(tareasPend>0){
+      items.push(tareasPend + (tareasPend===1 ? " tarea pendiente en el checklist." : " tareas pendientes en el checklist."));
+    }
+
+    var t = computeTotals();
+    var sumGasto = 0;
+    data.families.forEach(function(f){ sumGasto += f.gastoPropio||0; });
+    var msgGasto = buildGastoCheckMessage(t.totalCompras, sumGasto);
+    if(msgGasto.className.indexOf("ok")<0){
+      items.push(msgGasto.text);
+    }
+
+    el.innerHTML = "";
+    if(items.length===0){
+      var ok = document.createElement("div");
+      ok.className = "note ok";
+      ok.style.margin = "0";
+      ok.textContent = "✅ Todo listo: precios cargados, tareas al día y las cuentas cuadran.";
+      el.appendChild(ok);
+      return;
+    }
+    items.forEach(function(text){
+      var row = document.createElement("div");
+      row.className = "note bad";
+      row.style.margin = "0";
+      row.textContent = "⚠️ " + text;
+      el.appendChild(row);
+    });
+  }
+
   // valor por defecto si el usuario nunca toco el campo: estandar para un asado
   // como plato principal (~500 g por adulto, ~200-250 g por niño menor de 12).
   function gramosObjetivoAdulto(){ return (data.gramosAdultoObjetivo!=null) ? data.gramosAdultoObjetivo : 500; }
@@ -1515,6 +1566,8 @@
     var msgGasto = buildGastoCheckMessage(t.totalCompras, sumPago);
     verifyGasto.className = msgGasto.className;
     verifyGasto.textContent = msgGasto.text;
+
+    renderProgreso();
   }
 
   // ---------- reparto por producto (carnes + otras compras) ----------
@@ -1798,10 +1851,12 @@
     var list = data.tareas||[];
     var listas = list.filter(function(t){ return t.lista; }).length;
     var el = document.getElementById("tareasTotals");
-    if(!el) return;
-    el.innerHTML = list.length
-      ? "Tareas: <b>"+list.length+"</b> · Listas: <b>"+listas+"</b> · Pendientes: <b>"+(list.length-listas)+"</b>"
-      : "";
+    if(el){
+      el.innerHTML = list.length
+        ? "Tareas: <b>"+list.length+"</b> · Listas: <b>"+listas+"</b> · Pendientes: <b>"+(list.length-listas)+"</b>"
+        : "";
+    }
+    renderProgreso();
   }
   document.getElementById("addTarea").addEventListener("click", function(){
     if(!data.tareas) data.tareas = [];
