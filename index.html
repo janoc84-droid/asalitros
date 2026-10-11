@@ -338,7 +338,7 @@
     <div class="brand">
       <h1>🔥 Asalitros</h1>
       <div class="brand-right">
-        <span class="tag">Compras y reparto por familia</span>
+        <span class="tag" id="brandTag">Compras y reparto por familia</span>
         <button id="themeToggle" class="theme-btn" type="button" title="Cambiar tema">🌙</button>
       </div>
     </div>
@@ -355,10 +355,25 @@
 
 <main class="wrap">
 
-  <!-- 1. FAMILIAS -->
+  <!-- 1. EVENTO Y FAMILIAS -->
   <section class="card">
-    <div class="sec-head"><div class="sec-num">1</div><h2>Familias</h2></div>
-    <p class="sec-hint">Cada niño paga media cuota (2 niños = 1 cuota entera).</p>
+    <div class="sec-head"><div class="sec-num">1</div><h2>Evento y familias</h2></div>
+    <p class="sec-hint">Cuéntanos de qué se trata, para identificarlo en el historial y en las imágenes que compartas.</p>
+    <div class="row">
+      <div class="field grow">
+        <label>Nombre del evento</label>
+        <input type="text" id="eventoNombreInput" placeholder="Ej: Asado de fin de año, Cumpleaños de Pedro...">
+      </div>
+      <div class="field">
+        <label>Fecha</label>
+        <input type="date" id="eventoFechaInput">
+      </div>
+      <div class="field grow">
+        <label>Lugar</label>
+        <input type="text" id="eventoLugarInput" placeholder="Ej: Casa de los Pérez">
+      </div>
+    </div>
+    <p class="sec-hint" style="margin-top:14px;">Cada niño paga media cuota (2 niños = 1 cuota entera).</p>
     <div id="famRows"></div>
     <button class="add-btn" id="addFam" type="button">+ Agregar familia</button>
     <div class="totals-line" id="famTotals"></div>
@@ -427,7 +442,7 @@
   <!-- 4. RESUMEN DE COMPRAS: simple, enfocado en el total gastado (no en personas) -->
   <section class="card">
     <div id="resumenCapture" class="capture-card">
-      <div class="capture-brand">🔥 Asalitros</div>
+      <div class="capture-brand" id="resumenCaptureBrand">🔥 Asalitros</div>
       <div class="sec-head"><div class="sec-num">4</div><h2>Resumen de compras</h2></div>
       <p class="sec-hint">Todo lo que se compró y cuánto costó en total.</p>
 
@@ -498,7 +513,7 @@
      nunca se muestra en pantalla (ver .offscreen-capture), asi que no hay ningun
      popup que pueda quedar trabado. -->
 <div id="famShareCapture" class="capture-card offscreen-capture" aria-hidden="true">
-  <div class="capture-brand">🔥 Asalitros</div>
+  <div class="capture-brand" id="famShareCaptureBrand">🔥 Asalitros</div>
   <h3 id="famShareName">Familia</h3>
   <div class="resumen-grid" style="grid-template-columns:repeat(3,1fr);">
     <div class="stat"><div class="k">Adultos</div><div class="v" id="famShareAdultos">0</div></div>
@@ -809,6 +824,46 @@
       "</b> · Personas: <b>"+(totAdultos+totNinos)+"</b> · Cuotas: <b>"+num(totCuotas,1)+"</b>";
   }
 
+  // ---------- evento: nombre/fecha/lugar, puramente informativo ----------
+  // se usan como titulo sugerido al guardar en Historial y aparecen en el
+  // encabezado y en las imagenes que se comparten, para que quien la reciba
+  // sepa de que evento se trata sin tener que preguntar.
+  var eventoNombreInputEl = document.getElementById("eventoNombreInput");
+  var eventoFechaInputEl = document.getElementById("eventoFechaInput");
+  var eventoLugarInputEl = document.getElementById("eventoLugarInput");
+
+  function brandLine(){
+    return data.eventoNombre ? ("🔥 Asalitros — " + data.eventoNombre) : "🔥 Asalitros";
+  }
+  function updateBrandTag(){
+    var tagEl = document.getElementById("brandTag");
+    if(!tagEl) return;
+    var partes = [];
+    if(data.eventoNombre) partes.push(data.eventoNombre);
+    if(data.eventoFecha){
+      try{ partes.push(new Date(data.eventoFecha+"T00:00:00").toLocaleDateString("es-CL")); }catch(e){}
+    }
+    if(data.eventoLugar) partes.push(data.eventoLugar);
+    tagEl.textContent = partes.length ? partes.join(" · ") : "Compras y reparto por familia";
+    var resumenBrandEl = document.getElementById("resumenCaptureBrand");
+    if(resumenBrandEl) resumenBrandEl.textContent = brandLine();
+  }
+  function refreshEventoFields(){
+    eventoNombreInputEl.value = data.eventoNombre || "";
+    eventoFechaInputEl.value = data.eventoFecha || "";
+    eventoLugarInputEl.value = data.eventoLugar || "";
+    updateBrandTag();
+  }
+  eventoNombreInputEl.addEventListener("input", function(){
+    data.eventoNombre = eventoNombreInputEl.value; saveData(); updateBrandTag();
+  });
+  eventoFechaInputEl.addEventListener("input", function(){
+    data.eventoFecha = eventoFechaInputEl.value; saveData(); updateBrandTag();
+  });
+  eventoLugarInputEl.addEventListener("input", function(){
+    data.eventoLugar = eventoLugarInputEl.value; saveData(); updateBrandTag();
+  });
+
   document.getElementById("addFam").addEventListener("click", function(){
     data.families.push({name:"Familia "+(data.families.length+1), adultos:2, ninos:0});
     saveData(); buildFamilias(); recomputeCompras(); renderResumen();
@@ -1097,7 +1152,7 @@
     var factor = personas/r.rinde;
     r.ingredientes.forEach(function(ing){
       var cantidad = Math.round(ing.cantidad*factor*100)/100;
-      var item = { name: ing.name, cantidad: cantidad, precio: 0, unidad: ing.unidad };
+      var item = { name: ing.name, cantidad: cantidad, precio: 0, unidad: ing.unidad, categoria: "comida" };
       if(ing.unidad==="un" && ing.pesoUnidad) item.pesoUnidad = ing.pesoUnidad;
       data.items.push(item);
     });
@@ -1107,6 +1162,22 @@
     alert("Se agregaron " + r.ingredientes.length + " ingredientes de \"" + r.nombre + "\" a Compras, calculados para " +
       num(personas,1) + (personas===1?" persona.":" personas.") + " Revisa la sección Compras para ponerles el precio.");
   });
+
+  // categorias de gasto: sirven para separar comida de gastos no-comida cuando
+  // la cotizacion es para un evento mas grande que un asado (arriendo de
+  // mesas, decoracion, etc.). Por defecto todo queda en "Comida", que es el
+  // uso de siempre; el desglose solo se muestra si hay mas de una categoria.
+  var CATEGORIAS = [
+    {id:"comida", label:"Comida"},
+    {id:"bebida", label:"Bebida"},
+    {id:"arriendo", label:"Arriendo"},
+    {id:"decoracion", label:"Decoración"},
+    {id:"otro", label:"Otro"}
+  ];
+  function categoriaLabel(id){
+    var c = CATEGORIAS.filter(function(c){ return c.id===id; })[0];
+    return c ? c.label : "Comida";
+  }
 
   var comprasRowsEl = document.getElementById("comprasRows");
   function buildCompras(){
@@ -1133,6 +1204,11 @@
           '<select data-k="unidad">' +
             '<option value="kg"'+(unidad==="kg"?" selected":"")+'>Kilo</option>' +
             '<option value="un"'+(unidad==="un"?" selected":"")+'>Unidad</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="field"><label>Categoría</label>' +
+          '<select data-k="categoria">' +
+            CATEGORIAS.map(function(c){ return '<option value="'+c.id+'"'+((it.categoria||"comida")===c.id?" selected":"")+'>'+c.label+'</option>'; }).join("") +
           '</select>' +
         '</div>' +
         '<div class="field num"><label>'+qtyLabel+'</label><input type="number" class="lockable" min="0" step="0.1" inputmode="decimal" data-k="cantidad" value="'+it.cantidad+'"></div>' +
@@ -1175,6 +1251,13 @@
         buildCompras();
         renderResumen();
       });
+      row.querySelector("select[data-k='categoria']").addEventListener("change", function(){
+        var i2 = +row.dataset.idx;
+        data.items[i2].categoria = this.value;
+        saveData();
+        recomputeCompras();
+        renderResumen();
+      });
       row.querySelector(".del").addEventListener("click", function(){
         if(data.items.length<=1) return;
         data.items.splice(+row.dataset.idx,1);
@@ -1186,7 +1269,7 @@
   }
 
   document.getElementById("addCompra").addEventListener("click", function(){
-    data.items.push({name:"Nuevo producto", cantidad:0, precio:0, unidad:"kg"});
+    data.items.push({name:"Nuevo producto", cantidad:0, precio:0, unidad:"kg", categoria:"comida"});
     saveData(); buildCompras(); renderResumen();
   });
 
@@ -1230,9 +1313,12 @@
     var personas = totalPersonas();
     var rows = comprasRowsEl.querySelectorAll(".row");
     var totSub=0, totMeatGramos=0;
+    var porCategoria = {};
     data.items.forEach(function(it,i){
       var subtotal = it.cantidad * it.precio;
       totSub += subtotal;
+      var cat = it.categoria || "comida";
+      porCategoria[cat] = (porCategoria[cat]||0) + subtotal;
 
       var perPersonaTxt;
       if(personas<=0){
@@ -1253,7 +1339,12 @@
       }
     });
 
-    document.getElementById("comprasTotals").innerHTML = "Total compras: <b>"+money(totSub)+"</b>";
+    var catKeys = Object.keys(porCategoria).filter(function(k){ return porCategoria[k]>0; });
+    var totalsHtml = "Total compras: <b>"+money(totSub)+"</b>";
+    if(catKeys.length>1){
+      totalsHtml += " · " + catKeys.map(function(k){ return categoriaLabel(k)+": <b>"+money(porCategoria[k])+"</b>"; }).join(" · ");
+    }
+    document.getElementById("comprasTotals").innerHTML = totalsHtml;
     var topTotalEl = document.getElementById("comprasTotalTop");
     if(topTotalEl) topTotalEl.textContent = money(totSub);
 
@@ -1360,6 +1451,9 @@
 
   function renderResumen(){
     var t = computeTotals();
+
+    var resumenBrandEl = document.getElementById("resumenCaptureBrand");
+    if(resumenBrandEl) resumenBrandEl.textContent = brandLine();
 
     renderComprasResumen();
     document.getElementById("topTotal").textContent = money(t.totalCompras);
@@ -1567,6 +1661,7 @@
     var cuotas = f.adultos + f.ninos*0.5;
     var pagar = cuotas*t.valorCuota;
 
+    document.getElementById("famShareCaptureBrand").textContent = brandLine();
     document.getElementById("famShareName").textContent = f.name || "(sin nombre)";
     document.getElementById("famShareAdultos").textContent = f.adultos;
     document.getElementById("famShareNinos").textContent = f.ninos;
@@ -1880,7 +1975,7 @@
   var saveHistoryBtn = document.getElementById("saveHistoryBtn");
   saveHistoryBtn.addEventListener("click", async function(){
     var t = computeTotals();
-    var defaultName = "Asado " + new Date().toLocaleDateString("es-CL");
+    var defaultName = data.eventoNombre || ("Asado " + new Date().toLocaleDateString("es-CL"));
     var name = prompt("Nombre para esta cotización:", defaultName);
     if(name===null) return; // cancelado
     name = name.trim() || defaultName;
@@ -1956,6 +2051,7 @@
   })();
 
   function renderAll(){
+    refreshEventoFields();
     buildFamilias();
     buildCompras();
     renderResumen();
