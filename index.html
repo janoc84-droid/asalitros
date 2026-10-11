@@ -494,9 +494,18 @@
     <div class="note" id="verifyGastoNote" style="margin-top:8px;"></div>
   </section>
 
-  <!-- 6. HISTORIAL -->
+  <!-- 6. TAREAS: checklist de logistica (quien lleva/hace que), separado del dinero -->
   <section class="card">
-    <div class="sec-head"><div class="sec-num">6</div><h2>Historial</h2></div>
+    <div class="sec-head"><div class="sec-num">6</div><h2>Tareas</h2></div>
+    <p class="sec-hint">Cosas que hay que llevar o hacer para el evento, aparte de la plata: hielo, sillas, parlante, lo que sea.</p>
+    <div id="tareasRows"></div>
+    <button class="add-btn" id="addTarea" type="button">+ Agregar tarea</button>
+    <div class="totals-line" id="tareasTotals"></div>
+  </section>
+
+  <!-- 7. HISTORIAL -->
+  <section class="card">
+    <div class="sec-head"><div class="sec-num">7</div><h2>Historial</h2></div>
     <p class="sec-hint">Guarda esta cotización para poder verla después, sin perder lo que tengas mientras armas la siguiente.</p>
     <button class="add-btn" id="saveHistoryBtn" type="button">💾 Guardar esta cotización</button>
     <div id="historyList" style="margin-top:14px;"></div>
@@ -1742,6 +1751,64 @@
     }
   });
 
+  // ---------- tareas: checklist de logistica, separado del dinero ----------
+  // "asignado" es texto libre (no referencia a una familia por indice): asi
+  // nunca se desincroniza si alguien borra o reordena una familia, y permite
+  // asignarle una tarea a quien sea (un amigo, "entre todos", etc.).
+  var tareasRowsEl = document.getElementById("tareasRows");
+  function buildTareas(){
+    tareasRowsEl.innerHTML = "";
+    (data.tareas||[]).forEach(function(tarea, i){
+      var row = document.createElement("div");
+      row.className = "row";
+      row.dataset.idx = i;
+      row.innerHTML =
+        '<div class="field grow"><label>Tarea</label><input type="text" data-k="nombre" placeholder="Ej: Hielo, sillas, parlante..." value="'+escapeHtml(tarea.nombre||"")+'"></div>' +
+        '<div class="field grow"><label>Quién la lleva o hace</label><input type="text" data-k="asignado" placeholder="Ej: Familia Pérez, Juan..." value="'+escapeHtml(tarea.asignado||"")+'"></div>' +
+        '<div class="field"><label>&nbsp;</label>' +
+          '<label style="display:flex;align-items:center;gap:6px;padding:9px 0;cursor:pointer;">' +
+            '<input type="checkbox" data-k="lista"'+(tarea.lista?" checked":"")+'><span>Lista</span>' +
+          '</label>' +
+        '</div>' +
+        '<button class="del" type="button" title="Eliminar tarea">✕</button>';
+
+      row.querySelectorAll('input[type="text"]').forEach(function(inp){
+        inp.addEventListener("input", function(){
+          var i2 = +row.dataset.idx, k = inp.dataset.k;
+          data.tareas[i2][k] = inp.value;
+          saveData();
+          recomputeTareas();
+        });
+      });
+      row.querySelector('input[type="checkbox"]').addEventListener("change", function(){
+        var i2 = +row.dataset.idx;
+        data.tareas[i2].lista = this.checked;
+        saveData();
+        recomputeTareas();
+      });
+      row.querySelector(".del").addEventListener("click", function(){
+        data.tareas.splice(+row.dataset.idx,1);
+        saveData(); buildTareas();
+      });
+      tareasRowsEl.appendChild(row);
+    });
+    recomputeTareas();
+  }
+  function recomputeTareas(){
+    var list = data.tareas||[];
+    var listas = list.filter(function(t){ return t.lista; }).length;
+    var el = document.getElementById("tareasTotals");
+    if(!el) return;
+    el.innerHTML = list.length
+      ? "Tareas: <b>"+list.length+"</b> · Listas: <b>"+listas+"</b> · Pendientes: <b>"+(list.length-listas)+"</b>"
+      : "";
+  }
+  document.getElementById("addTarea").addEventListener("click", function(){
+    if(!data.tareas) data.tareas = [];
+    data.tareas.push({id:Date.now(), nombre:"", asignado:"", lista:false});
+    saveData(); buildTareas();
+  });
+
   // ---------- historial de cotizaciones ----------
   // igual que el estado actual: localStorage es la copia local instantanea,
   // y la coleccion "history" en la nube es lo que permite verlo desde
@@ -2054,6 +2121,7 @@
     refreshEventoFields();
     buildFamilias();
     buildCompras();
+    buildTareas();
     renderResumen();
   }
   renderAll();
