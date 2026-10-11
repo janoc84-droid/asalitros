@@ -376,15 +376,59 @@
 
     <div id="comprasRows" style="margin-top:14px;"></div>
     <button class="add-btn" id="addCompra" type="button">+ Agregar producto</button>
+
+    <div class="row" style="padding-top:14px;">
+      <div class="field num">
+        <label>Gramos por adulto</label>
+        <input type="number" class="lockable" min="0" step="10" inputmode="numeric" id="gramosAdultoInput">
+      </div>
+      <div class="field num">
+        <label>Gramos por niño</label>
+        <input type="number" class="lockable" min="0" step="10" inputmode="numeric" id="gramosNinoInput">
+      </div>
+    </div>
+    <p class="sec-hint" style="margin:4px 0 0;">Estándar para un asado como plato principal: ~500 g por adulto, ~200-250 g por niño menor de 12 años. Ajusta si quieres calcular distinto.</p>
     <div class="note" id="meatCheck" style="margin-top:10px;"></div>
     <div class="totals-line" id="comprasTotals"></div>
   </section>
 
-  <!-- 3. RESUMEN DE COMPRAS: simple, enfocado en el total gastado (no en personas) -->
+  <!-- 3. RECETAS: calculadora de salsas/aderezos, escala ingredientes y los agrega a Compras -->
+  <section class="card">
+    <div class="sec-head"><div class="sec-num">3</div><h2>Recetas</h2></div>
+    <p class="sec-hint">Escribe el nombre de una salsa (pebre, chimichurri, mayonesa casera...) y calcula cuánto necesitas para tus invitados.</p>
+
+    <div class="row">
+      <div class="field grow">
+        <label>Receta</label>
+        <input type="text" id="recetaInput" list="recetaList" placeholder="Ej: pebre, chimichurri, mayonesa casera...">
+        <datalist id="recetaList"></datalist>
+      </div>
+      <div class="field num">
+        <label>Para cuántas personas</label>
+        <input type="number" class="lockable" min="0" inputmode="numeric" id="recetaPersonas">
+      </div>
+    </div>
+
+    <div id="recetaNotFound" class="note" hidden>No tengo esa receta en la base todavía. Prueba con: pebre, chimichurri, chancho en piedra, salsa criolla, mayonesa casera, salsa golf, guacamole.</div>
+
+    <div id="recetaCard" hidden style="margin-top:10px;">
+      <p class="sec-hint" id="recetaRinde" style="margin:0 0 10px;"></p>
+      <div class="table-wrap">
+        <table class="fam-table">
+          <thead><tr><th>Ingrediente</th><th style="text-align:right">Cantidad</th></tr></thead>
+          <tbody id="recetaIngredientesBody"></tbody>
+        </table>
+      </div>
+      <p class="sec-hint" id="recetaNotas" style="margin:10px 0 0;"></p>
+      <button class="add-btn" id="recetaAgregarBtn" type="button">+ Agregar ingredientes a Compras</button>
+    </div>
+  </section>
+
+  <!-- 4. RESUMEN DE COMPRAS: simple, enfocado en el total gastado (no en personas) -->
   <section class="card">
     <div id="resumenCapture" class="capture-card">
       <div class="capture-brand">🔥 Asalitros</div>
-      <div class="sec-head"><div class="sec-num">3</div><h2>Resumen de compras</h2></div>
+      <div class="sec-head"><div class="sec-num">4</div><h2>Resumen de compras</h2></div>
       <p class="sec-hint">Todo lo que se compró y cuánto costó en total.</p>
 
       <div class="bar-chart" id="comprasChart"></div>
@@ -409,7 +453,7 @@
 
   <!-- 5. PAGO POR FAMILIA -->
   <section class="card">
-    <div class="sec-head"><div class="sec-num">4</div><h2>Pago por familia</h2></div>
+    <div class="sec-head"><div class="sec-num">5</div><h2>Pago por familia</h2></div>
     <p class="sec-hint">Cuánto le toca pagar a cada familia según sus cuotas. Cada adulto = 1 cuota, cada niño = 0.5 cuota (2 niños = 1 cuota entera). Ejemplo: 2 adultos + 1 niño = 2.5 cuotas.</p>
 
     <div class="resumen-grid">
@@ -437,7 +481,7 @@
 
   <!-- 6. HISTORIAL -->
   <section class="card">
-    <div class="sec-head"><div class="sec-num">5</div><h2>Historial</h2></div>
+    <div class="sec-head"><div class="sec-num">6</div><h2>Historial</h2></div>
     <p class="sec-hint">Guarda esta cotización para poder verla después, sin perder lo que tengas mientras armas la siguiente.</p>
     <button class="add-btn" id="saveHistoryBtn" type="button">💾 Guardar esta cotización</button>
     <div id="historyList" style="margin-top:14px;"></div>
@@ -811,12 +855,12 @@
     // verduras, ensaladas y vegetales
     [/verdura|vegetal|lechuga|repollo|acelga|espinaca|\bapio\b/i, "🥬"],
     [/tomate/i, "🍅"],
-    [/cebolla/i, "🧅"],
+    [/cebolla|cebollin/i, "🧅"],
     [/\bpalta\b|aguacate/i, "🥑"],
     [/choclo|ma[íi]z|elote/i, "🌽"],
     [/\bpapa\b|patata/i, "🥔"],
     [/zanahoria/i, "🥕"],
-    [/pimiento|piment[oó]n|\baj[ií]\b|morr[oó]n/i, "🫑"],
+    [/pimiento|piment[oó]n|\baj[ií](?![a-záéíóúñ])|morr[oó]n/i, "🫑"],
     [/pepino|zapallos?\s*italianos?|zucchini/i, "🥒"],
     [/br[oó]coli|coliflor/i, "🥦"],
     [/zapallo|calabaza/i, "🎃"],
@@ -881,6 +925,188 @@
     }
     return "🍽️";
   }
+
+  // ---------- recetas: calculadora de salsas/aderezos para el asado ----------
+  // Cantidades y rendimiento ("rinde") tomados de recetas publicadas (ver "fuente"
+  // en cada una). Cuando la fuente no decia cuantas personas rendia la receta,
+  // "fuente" queda marcada como "estimado...". Sal, pimienta y otros condimentos
+  // "a gusto" quedan solo en las notas: no se agregan a Compras porque casi
+  // siempre ya estan en la despensa de la casa.
+  var RECETAS = [
+    {
+      id:"pebre", nombre:"Pebre chileno", rinde:10,
+      fuente:"estimado a partir de recetas chilenas publicadas",
+      notas:"Deja reposar al menos 30 min en el refrigerador antes de servir. Sal y pimienta a gusto.",
+      ingredientes:[
+        {name:"Tomate", cantidad:5, unidad:"un", pesoUnidad:150},
+        {name:"Cebolla", cantidad:4, unidad:"un", pesoUnidad:150},
+        {name:"Ajo (dientes)", cantidad:8, unidad:"un", pesoUnidad:5},
+        {name:"Cilantro", cantidad:2, unidad:"un", pesoUnidad:60},
+        {name:"Ají verde", cantidad:3, unidad:"un", pesoUnidad:15},
+        {name:"Limón", cantidad:2, unidad:"un", pesoUnidad:90},
+        {name:"Aceite", cantidad:0.12, unidad:"kg"}
+      ]
+    },
+    {
+      id:"chimichurri", nombre:"Chimichurri", rinde:6,
+      fuente:"Directo al Paladar",
+      notas:"Mejora si macera unas horas (o días) en el refrigerador antes de servir. Sal a gusto.",
+      ingredientes:[
+        {name:"Ajo (dientes)", cantidad:3, unidad:"un", pesoUnidad:5},
+        {name:"Perejil", cantidad:1, unidad:"un", pesoUnidad:30},
+        {name:"Orégano seco", cantidad:0.01, unidad:"kg"},
+        {name:"Vinagre", cantidad:0.05, unidad:"kg"},
+        {name:"Aceite", cantidad:0.15, unidad:"kg"},
+        {name:"Ají molido o merkén", cantidad:0.005, unidad:"kg"}
+      ]
+    },
+    {
+      id:"chancho_piedra", nombre:"Chancho en piedra", rinde:6,
+      fuente:"Redgol / El Dínamo",
+      notas:"Se machaca tradicionalmente en mortero de piedra. El ají puede ser cristal o verde. Sal y pimienta a gusto.",
+      ingredientes:[
+        {name:"Ajo (dientes)", cantidad:2, unidad:"un", pesoUnidad:5},
+        {name:"Tomate", cantidad:4, unidad:"un", pesoUnidad:150},
+        {name:"Ají verde", cantidad:1, unidad:"un", pesoUnidad:15},
+        {name:"Cebolla", cantidad:0.5, unidad:"un", pesoUnidad:150},
+        {name:"Vinagre", cantidad:0.03, unidad:"kg"},
+        {name:"Aceite", cantidad:0.04, unidad:"kg"},
+        {name:"Orégano seco", cantidad:0.005, unidad:"kg"}
+      ]
+    },
+    {
+      id:"salsa_criolla", nombre:"Salsa criolla", rinde:10,
+      fuente:"estimado a partir de receta argentina publicada (Diario Uno)",
+      notas:"Pica todo en cubos chicos, mezcla el vinagre con los condimentos y termina agregando el aceite. Mejor si reposa de un día para otro. Sal, pimienta y comino a gusto.",
+      ingredientes:[
+        {name:"Cebolla", cantidad:1, unidad:"un", pesoUnidad:200},
+        {name:"Pimentón rojo", cantidad:1, unidad:"un", pesoUnidad:150},
+        {name:"Pimentón verde", cantidad:1, unidad:"un", pesoUnidad:150},
+        {name:"Pimentón amarillo", cantidad:1, unidad:"un", pesoUnidad:150},
+        {name:"Tomate", cantidad:2, unidad:"un", pesoUnidad:100},
+        {name:"Cebollín", cantidad:1, unidad:"un", pesoUnidad:40},
+        {name:"Aceite de oliva", cantidad:0.25, unidad:"kg"},
+        {name:"Vinagre de manzana", cantidad:0.12, unidad:"kg"}
+      ]
+    },
+    {
+      id:"mayonesa", nombre:"Mayonesa casera", rinde:4,
+      fuente:"Redgol / receta española (que.es)",
+      notas:"Bate con batidora de mano en un recipiente angosto, incorporando el aceite de a poco. Guárdala en el refrigerador y consúmela en 2-3 días (lleva huevo crudo). Sal a gusto.",
+      ingredientes:[
+        {name:"Huevo", cantidad:1, unidad:"un", pesoUnidad:60},
+        {name:"Aceite", cantidad:0.15, unidad:"kg"},
+        {name:"Limón", cantidad:1, unidad:"un", pesoUnidad:90}
+      ]
+    },
+    {
+      id:"salsa_golf", nombre:"Salsa golf", rinde:8,
+      fuente:"Hell's Kitchen",
+      notas:"Mezcla la mayonesa con el ketchup. Si quieres, agrégale un toque de mostaza o jugo de limón.",
+      ingredientes:[
+        {name:"Mayonesa", cantidad:0.2, unidad:"kg"},
+        {name:"Ketchup", cantidad:0.1, unidad:"kg"}
+      ]
+    },
+    {
+      id:"guacamole", nombre:"Guacamole (palta)", rinde:6,
+      fuente:"Publix, más agregados típicos chilenos",
+      notas:"Machaca la palta con un tenedor y mezcla el resto. Agrega el limón al final para que no se oxide. Sal y pimienta a gusto.",
+      ingredientes:[
+        {name:"Palta", cantidad:2, unidad:"un", pesoUnidad:200},
+        {name:"Tomate", cantidad:1, unidad:"un", pesoUnidad:150},
+        {name:"Cebolla", cantidad:1, unidad:"un", pesoUnidad:150},
+        {name:"Limón", cantidad:1, unidad:"un", pesoUnidad:90},
+        {name:"Cilantro", cantidad:1, unidad:"un", pesoUnidad:30}
+      ]
+    }
+  ];
+
+  // coincidencia exacta de nombre (sin mayus/minus): el datalist ya guia al
+  // usuario a elegir un nombre valido, asi que no hace falta busqueda difusa.
+  function findReceta(texto){
+    var n = String(texto||"").trim().toLowerCase();
+    if(!n) return null;
+    for(var i=0;i<RECETAS.length;i++){
+      if(RECETAS[i].nombre.toLowerCase() === n) return RECETAS[i];
+    }
+    return null;
+  }
+
+  function formatRecetaQty(cantidad, unidad, pesoUnidad){
+    if(unidad==="un"){
+      var txt = num(cantidad,2) + " un";
+      if(pesoUnidad) txt += " (" + Math.round(cantidad*pesoUnidad) + " g aprox.)";
+      return txt;
+    }
+    var gramos = cantidad*1000;
+    return gramos<1000 ? Math.round(gramos)+" g" : num(cantidad,2)+" kg";
+  }
+
+  var recetaInputEl = document.getElementById("recetaInput");
+  var recetaListEl = document.getElementById("recetaList");
+  var recetaPersonasEl = document.getElementById("recetaPersonas");
+  RECETAS.forEach(function(r){
+    var opt = document.createElement("option");
+    opt.value = r.nombre;
+    recetaListEl.appendChild(opt);
+  });
+  recetaPersonasEl.value = totalPersonas();
+
+  function renderReceta(){
+    var r = findReceta(recetaInputEl.value);
+    var card = document.getElementById("recetaCard");
+    var notFound = document.getElementById("recetaNotFound");
+    if(!r){
+      card.hidden = true;
+      notFound.hidden = recetaInputEl.value.trim()==="";
+      return;
+    }
+    notFound.hidden = true;
+    card.hidden = false;
+
+    var personas = Math.max(0, parseFloat(recetaPersonasEl.value)||0);
+    var factor = personas>0 ? personas/r.rinde : 1;
+
+    document.getElementById("recetaRinde").textContent =
+      "Receta base: rinde " + r.rinde + (r.rinde===1?" persona":" personas") + " (" + r.fuente + "). " +
+      (personas>0 ? "Calculando para " + num(personas,1) + (personas===1?" persona.":" personas.") : "Escribe cuántas personas para escalarla.");
+
+    var body = document.getElementById("recetaIngredientesBody");
+    body.innerHTML = "";
+    r.ingredientes.forEach(function(ing){
+      var cantidadEscalada = ing.cantidad*factor;
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td>"+detectFoodIcon(ing.name)+" "+escapeHtml(ing.name)+"</td>" +
+        "<td style='text-align:right'>"+formatRecetaQty(cantidadEscalada, ing.unidad, ing.pesoUnidad)+"</td>";
+      body.appendChild(tr);
+    });
+
+    document.getElementById("recetaNotas").textContent = r.notas;
+  }
+
+  recetaInputEl.addEventListener("input", renderReceta);
+  recetaPersonasEl.addEventListener("input", renderReceta);
+  wireLockable(recetaPersonasEl);
+
+  document.getElementById("recetaAgregarBtn").addEventListener("click", function(){
+    var r = findReceta(recetaInputEl.value);
+    if(!r) return;
+    var personas = Math.max(0, parseFloat(recetaPersonasEl.value)||0);
+    if(personas<=0){ alert("Escribe para cuántas personas, antes de agregar los ingredientes."); return; }
+    var factor = personas/r.rinde;
+    r.ingredientes.forEach(function(ing){
+      var cantidad = Math.round(ing.cantidad*factor*100)/100;
+      var item = { name: ing.name, cantidad: cantidad, precio: 0, unidad: ing.unidad };
+      if(ing.unidad==="un" && ing.pesoUnidad) item.pesoUnidad = ing.pesoUnidad;
+      data.items.push(item);
+    });
+    saveData();
+    buildCompras();
+    renderResumen();
+    alert("Se agregaron " + r.ingredientes.length + " ingredientes de \"" + r.nombre + "\" a Compras, calculados para " +
+      num(personas,1) + (personas===1?" persona.":" personas.") + " Revisa la sección Compras para ponerles el precio.");
+  });
 
   var comprasRowsEl = document.getElementById("comprasRows");
   function buildCompras(){
@@ -964,6 +1190,22 @@
     saveData(); buildCompras(); renderResumen();
   });
 
+  // campos de gramos objetivo (adulto/niño): un solo control global, no por fila.
+  var gramosAdultoInputEl = document.getElementById("gramosAdultoInput");
+  var gramosNinoInputEl = document.getElementById("gramosNinoInput");
+  gramosAdultoInputEl.value = gramosObjetivoAdulto();
+  gramosNinoInputEl.value = gramosObjetivoNino();
+  gramosAdultoInputEl.addEventListener("input", function(){
+    data.gramosAdultoObjetivo = Math.max(0, parseFloat(gramosAdultoInputEl.value)||0);
+    saveData(); recomputeCompras();
+  });
+  gramosNinoInputEl.addEventListener("input", function(){
+    data.gramosNinoObjetivo = Math.max(0, parseFloat(gramosNinoInputEl.value)||0);
+    saveData(); recomputeCompras();
+  });
+  wireLockable(gramosAdultoInputEl);
+  wireLockable(gramosNinoInputEl);
+
   // arma el mensaje de "cuadra / falta / sobra" comparando el total de
   // compras contra lo que las familias dicen haber gastado. Se usa arriba en
   // Compras (para verlo mientras se va cargando) y de nuevo en Pago por
@@ -979,10 +1221,15 @@
     }
   }
 
+  // valor por defecto si el usuario nunca toco el campo: estandar para un asado
+  // como plato principal (~500 g por adulto, ~200-250 g por niño menor de 12).
+  function gramosObjetivoAdulto(){ return (data.gramosAdultoObjetivo!=null) ? data.gramosAdultoObjetivo : 500; }
+  function gramosObjetivoNino(){ return (data.gramosNinoObjetivo!=null) ? data.gramosNinoObjetivo : 250; }
+
   function recomputeCompras(){
     var personas = totalPersonas();
     var rows = comprasRowsEl.querySelectorAll(".row");
-    var totSub=0, totMeatGramosPP=0;
+    var totSub=0, totMeatGramos=0;
     data.items.forEach(function(it,i){
       var subtotal = it.cantidad * it.precio;
       totSub += subtotal;
@@ -995,8 +1242,8 @@
       }else{
         perPersonaTxt = num((it.cantidad*1000)/personas, 0) + " g";
       }
-      if(isMeatIcon(detectFoodIcon(it.name)) && personas>0){
-        totMeatGramosPP += itemWeightKg(it)*1000/personas;
+      if(isMeatIcon(detectFoodIcon(it.name))){
+        totMeatGramos += itemWeightKg(it)*1000;
       }
 
       var row = rows[i];
@@ -1010,16 +1257,31 @@
     var topTotalEl = document.getElementById("comprasTotalTop");
     if(topTotalEl) topTotalEl.textContent = money(totSub);
 
+    // objetivo total = cada adulto por su gramaje objetivo + cada niño por el suyo
+    // (en vez de repartir el total de carne por cabeza parejo, que subestima a
+    // los grupos con mas adultos y sobrestima a los que tienen mas niños).
+    var totAdultos=0, totNinos=0;
+    data.families.forEach(function(f){ totAdultos += f.adultos||0; totNinos += f.ninos||0; });
+    var objetivoTotal = totAdultos*gramosObjetivoAdulto() + totNinos*gramosObjetivoNino();
+    var totRound = Math.round(totMeatGramos);
+    var objRound = Math.round(objetivoTotal);
+
     var chk = document.getElementById("meatCheck");
-    var totRound = Math.round(totMeatGramosPP);
-    if(totRound<=0){
-      chk.className="note"; chk.textContent="Aún no hay carnes con precio y cantidad cargados para calcular gramos por persona.";
-    }else if(totRound>=480 && totRound<=520){
-      chk.className="note ok"; chk.textContent="OK: entre las carnes está quedando "+totRound+" g por persona (cerca de los 500 g recomendados).";
-    }else if(totRound>520){
-      chk.className="note bad"; chk.textContent="Va quedando bastante: "+totRound+" g de carne por persona (más de 500 g). Puedes comprar menos si quieres.";
+    if(objRound<=0){
+      chk.className="note"; chk.textContent="Agrega adultos o niños en Familias para calcular cuánta carne te conviene comprar.";
+    }else if(totRound<=0){
+      chk.className="note";
+      chk.textContent="Aún no hay carnes con precio y cantidad cargados. Para "+totAdultos+(totAdultos===1?" adulto":" adultos")+" y "+totNinos+(totNinos===1?" niño":" niños")+" el objetivo es "+objRound+" g en total.";
     }else{
-      chk.className="note bad"; chk.textContent="Va quedando poco: "+totRound+" g de carne por persona (menos de 500 g). Puede que falte carne.";
+      var pct = totRound/objRound*100;
+      var detalle = totRound+" g de "+objRound+" g objetivo ("+totAdultos+(totAdultos===1?" adulto":" adultos")+" × "+gramosObjetivoAdulto()+" g + "+totNinos+(totNinos===1?" niño":" niños")+" × "+gramosObjetivoNino()+" g).";
+      if(pct>=96 && pct<=104){
+        chk.className="note ok"; chk.textContent="OK: llevas "+detalle;
+      }else if(pct>104){
+        chk.className="note bad"; chk.textContent="Va quedando más carne de la calculada: llevas "+detalle+" Puedes comprar menos si quieres.";
+      }else{
+        chk.className="note bad"; chk.textContent="Va quedando menos carne de la calculada: llevas "+detalle+" Puede que falte.";
+      }
     }
 
     var sumGasto = 0;
