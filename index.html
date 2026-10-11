@@ -648,64 +648,173 @@
 
   var data = loadData();
 
-  // ---------- sincronizacion con la nube (capacidad "db" del artefacto) ----------
-  // localStorage sigue siendo la copia local instantanea (funciona igual aunque
-  // "db" no este disponible); "db" es la copia compartida que permite ver los
-  // mismos datos desde cualquier dispositivo que abra este mismo link.
-  var dbApi = null;
-  var stateDocRef = null;
-  var stateSaveTimer = null;
-  var stateSaveInFlight = false;
-  var stateSaveQueued = false;
+  // ---------- nube: credenciales y helper compartidos ----------
+  // Un solo lugar para la URL/clave de Supabase: tanto el borrador en vivo
+  // (aqui abajo) como el Historial (mas abajo en el archivo) las usan. La
+  // clave "sb_publishable" es publica por diseno: solo puede hacer lo que
+  // permiten las politicas de cada tabla, no es un secreto.
+  var CLOUD_URL = "https://vwhkpcuckvkxjltotmna.supabase.co";   // URL del proyecto Supabase (https://xxxx.supabase.co); vacia = sincronizacion apagada
+  var CLOUD_KEY = "sb_publishable_iVD0jVoT2Kh66m3D6fseSg_6vaXZ5PA";   // clave publica del proyecto (sb_publishable_...)
+  function cloudEnabled(){ return !!CLOUD_URL; }
 
-  function scheduleStateSave(){
-    if(!stateDocRef) return;
-    stateSaveQueued = true;
-    if(stateSaveTimer) return;
-    stateSaveTimer = setTimeout(flushStateSave, 900);
+  async function cloudRequest(table, method, query, body, prefer){
+    var headers = { "apikey": CLOUD_KEY };
+    if(/^eyJ/.test(CLOUD_KEY)) headers["Authorization"] = "Bearer " + CLOUD_KEY; // solo las claves antiguas (JWT) van tambien como Bearer
+    if(body !== undefined) headers["Content-Type"] = "application/json";
+    if(prefer) headers["Prefer"] = prefer;
+    var ctl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 15000) : null;
+    try{
+      var res = await fetch(CLOUD_URL.replace(/\/+$/,"") + "/rest/v1/" + table + query, {
+        method: method,
+        headers: headers,
+        body: body===undefined ? undefined : JSON.stringify(body),
+        signal: ctl ? ctl.signal : undefined
+      });
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      var text = await res.text();
+      return text ? JSON.parse(text) : null;
+    }finally{
+      if(timer) clearTimeout(timer);
+    }
   }
-  async function flushStateSave(){
-    stateSaveTimer = null;
-    if(!stateDocRef || stateSaveInFlight){ return; }
-    stateSaveQueued = false;
-    stateSaveInFlight = true;
-    try{ await stateDocRef.set(data); }catch(e){}
-    stateSaveInFlight = false;
-    if(stateSaveQueued) scheduleStateSave();
+
+  // ---------- borrador en vivo: colaboracion entre dispositivos ----------
+  // localStorage sigue siendo la copia local instantanea de siempre; ademas
+  // se guarda en una sola fila compartida en Supabase (tabla
+  // asalitros_live_state, id=1) para que cualquier dispositivo con la clave
+  // vea los mismos cambios sin tener que guardar en el Historial primero.
+  // Se revisa cada ~7 segundos mientras la pagina esta visible, y al volver
+  // a la app o recuperar internet.
+  //
+  // Gana la ultima escritura: NO se fusiona campo por campo (a diferencia
+  // del Historial, que fusiona por id). Si dos personas editan algo distinto
+  // al mismo tiempo, puede ganar la que termine de escribir ultima. Para lo
+  // que nunca se debe perder esta el boton "Guardar esta cotización" del
+  // Historial, que nunca se sobreescribe solo.
+  var LIVE_TABLE = "asalitros_live_state";
+  var deviceId = (function(){
+    var KEY = "asalitrosDeviceId";
+    var id = null;
+    try{ id = localStorage.getItem(KEY); }catch(e){}
+    if(!id){
+      id = "dev_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,10);
+      try{ localStorage.setItem(KEY, id); }catch(e){}
+    }
+    return id;
+  })();
+  var liveLastSeenAt = null;
+  var liveSaveTimer = null;
+  var liveSaveInFlight = false;
+  var liveSaveQueued = false;
+  var liveDirty = false; // true = hay un cambio local que todavia no se confirmo subido
+  var livePulling = false;
+
+  function isRemoteStateValid(remote){
+    return !!(remote && Array.isArray(remote.families) && Array.isArray(remote.items));
+  }
+
+  function scheduleLiveSave(){
+    if(!cloudEnabled()) return;
+    liveDirty = true;
+    liveSaveQueued = true;
+    if(liveSaveTimer) return;
+    liveSaveTimer = setTimeout(flushLiveSave, 900);
+  }
+  async function flushLiveSave(){
+    liveSaveTimer = null;
+    if(!cloudEnabled() || liveSaveInFlight) return;
+    liveSaveQueued = false;
+    liveSaveInFlight = true;
+    try{
+      var nowIso = new Date().toISOString();
+      await cloudRequest(LIVE_TABLE, "POST", "?on_conflict=id",
+        { id:1, updated_at:nowIso, device:deviceId, data_json:JSON.stringify(data) },
+        "resolution=merge-duplicates,return=minimal");
+      liveLastSeenAt = nowIso;
+      liveDirty = false;
+    }catch(e){ /* sin conexion u otro error: liveDirty queda en true, se reintenta con liveSyncSoon() */ }
+    liveSaveInFlight = false;
+    if(liveSaveQueued) scheduleLiveSave();
+  }
+
+  // se usa en los disparadores de reconexion (volver a la app, recuperar
+  // internet): si quedo un cambio local sin confirmar subido, lo reintenta
+  // en vez de revisar la nube (que podria pisar esa edicion todavia pendiente).
+  function liveSyncSoon(){
+    if(!cloudEnabled()) return;
+    if(liveDirty) scheduleLiveSave();
+    else pullLiveState();
   }
 
   function saveData(){
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
-    scheduleStateSave();
+    scheduleLiveSave();
   }
 
-  function isRemoteStateValid(remote){
-    return !!(remote && remote.families && Array.isArray(remote.items));
-  }
-
-  (async function initCloudSync(){
-    var db = null;
-    try{ db = await claude.use("db"); }catch(e){}
-    if(!db) return; // sin "db" disponible: la app sigue funcionando solo con localStorage
-    dbApi = db;
-    stateDocRef = db.doc("app/state");
+  // revision periodica: aplica el cambio remoto solo si es mas nuevo que el
+  // ultimo que vimos Y no lo escribimos nosotros mismos (evita el eco de
+  // nuestro propio guardado), y solo si no hay una edicion local en curso.
+  async function pullLiveState(){
+    if(!cloudEnabled() || livePulling || liveSaveInFlight || liveSaveQueued) return;
+    livePulling = true;
     try{
-      var snap = await stateDocRef.get();
-      if(snap.exists && isRemoteStateValid(snap.data())){
-        data = snap.data();
-        try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
-        renderAll();
-      }else{
-        scheduleStateSave(); // no habia nada guardado en la nube: sube lo local
+      var rows = await cloudRequest(LIVE_TABLE, "GET", "?id=eq.1&select=updated_at,device,data_json") || [];
+      var row = rows[0];
+      if(row && (!liveLastSeenAt || row.updated_at>liveLastSeenAt)){
+        if(row.device!==deviceId){
+          var remote = null;
+          try{ remote = JSON.parse(row.data_json); }catch(e){}
+          if(isRemoteStateValid(remote)){
+            data = remote;
+            try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+            renderAll();
+          }
+        }
+        liveLastSeenAt = row.updated_at;
       }
     }catch(e){}
-    stateDocRef.onSnapshot(function(snap){
-      if(stateSaveInFlight || stateSaveQueued) return; // no pisar una edicion en curso
-      if(!snap.exists || !isRemoteStateValid(snap.data())) return;
-      data = snap.data();
-      try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
-      renderAll();
-    }, function(){ /* error terminal: sigue funcionando solo con localStorage */ });
+    livePulling = false;
+  }
+
+  (async function initLiveSync(){
+    if(!cloudEnabled()) return;
+    try{
+      var rows = await cloudRequest(LIVE_TABLE, "GET", "?id=eq.1&select=updated_at,device,data_json") || [];
+      var row = rows[0];
+      if(row){
+        var remote = null;
+        try{ remote = JSON.parse(row.data_json); }catch(e){}
+        if(isRemoteStateValid(remote)){
+          var localTocado = JSON.stringify(data) !== JSON.stringify(defaultData);
+          var distinto = JSON.stringify(remote) !== JSON.stringify(data);
+          var usarRemoto = true;
+          if(distinto && localTocado){
+            usarRemoto = confirm(
+              "Hay una cotización compartida en la nube, distinta a la que tienes en este dispositivo.\n\n" +
+              "Aceptar: usar la de la nube (lo que tengas aquí se reemplaza).\n" +
+              "Cancelar: seguir con la de este dispositivo (la de la nube se reemplaza por esta)."
+            );
+          }
+          liveLastSeenAt = row.updated_at;
+          if(usarRemoto){
+            data = remote;
+            try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
+            renderAll();
+          }else{
+            scheduleLiveSave();
+          }
+        }
+      }
+    }catch(e){}
+    if(liveLastSeenAt===null) scheduleLiveSave(); // no habia fila todavia: publica lo local
+
+    setInterval(function(){ if(document.visibilityState==="visible") liveSyncSoon(); }, 7000);
+    window.addEventListener("online", liveSyncSoon);
+    window.addEventListener("focus", liveSyncSoon);
+    document.addEventListener("visibilitychange", function(){
+      if(document.visibilityState==="visible") liveSyncSoon();
+    });
   })();
 
   function money(n){
@@ -1869,7 +1978,6 @@
   // y la coleccion "history" en la nube es lo que permite verlo desde
   // cualquier dispositivo que abra este mismo link.
   var HISTORY_KEY = "asalitrosHistory_v1";
-  var historyColRef = null;
 
   function loadHistory(){
     try{
@@ -1888,20 +1996,16 @@
   // El historial vive en este dispositivo (localStorage) y ademas en una tabla
   // de Supabase (por REST), asi la APK y cualquier navegador ven las mismas
   // cotizaciones. Sin internet todo sigue funcionando en local y se sube solo
-  // cuando vuelve la conexion.
+  // cuando vuelve la conexion. CLOUD_URL/CLOUD_KEY/cloudEnabled()/cloudRequest()
+  // son los mismos que usa el borrador en vivo, definidos mas arriba.
   // Nunca se reemplaza el historial local por el de la nube: se FUSIONAN
-  // (union por id), para que sincronizar jamas pueda borrar algo guardado.
-  // La clave "sb_publishable" es publica por diseno: solo puede hacer lo que
-  // permiten las politicas de la tabla asalitros_history, no es un secreto.
-  var CLOUD_URL = "https://vwhkpcuckvkxjltotmna.supabase.co";   // URL del proyecto Supabase (https://xxxx.supabase.co); vacia = sincronizacion apagada
-  var CLOUD_KEY = "sb_publishable_iVD0jVoT2Kh66m3D6fseSg_6vaXZ5PA";   // clave publica del proyecto (sb_publishable_...)
+  // (union por id), para que sincronizar jamas pueda borrar algo guardado -a
+  // diferencia del borrador en vivo, que es ultima-escritura-gana.
   var CLOUD_TABLE = "asalitros_history";
   var SYNCED_KEY = "asalitrosHistorySynced_v1";      // ids que ya estuvieron en la nube
   var PENDING_DEL_KEY = "asalitrosHistoryDeletes_v1"; // borrados aun no enviados a la nube
   var cloudSyncing = false, cloudSyncAgain = false;
   var cloudLastOk = null, cloudLastTime = "", cloudLastEnd = 0;
-
-  function cloudEnabled(){ return !!CLOUD_URL; }
 
   function readIdList(key){
     try{
@@ -1923,28 +2027,6 @@
     try{
       return { id:Number(c.id), name:c.name || "(sin nombre)", dateLabel:c.date_label || "", total:Number(c.total) || 0, data:JSON.parse(c.data_json) };
     }catch(e){ return null; }
-  }
-
-  async function cloudRequest(method, query, body, prefer){
-    var headers = { "apikey": CLOUD_KEY };
-    if(/^eyJ/.test(CLOUD_KEY)) headers["Authorization"] = "Bearer " + CLOUD_KEY; // solo las claves antiguas (JWT) van tambien como Bearer
-    if(body !== undefined) headers["Content-Type"] = "application/json";
-    if(prefer) headers["Prefer"] = prefer;
-    var ctl = typeof AbortController === "function" ? new AbortController() : null;
-    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 15000) : null;
-    try{
-      var res = await fetch(CLOUD_URL.replace(/\/+$/,"") + "/rest/v1/" + CLOUD_TABLE + query, {
-        method: method,
-        headers: headers,
-        body: body===undefined ? undefined : JSON.stringify(body),
-        signal: ctl ? ctl.signal : undefined
-      });
-      if(!res.ok) throw new Error("HTTP " + res.status);
-      var text = await res.text();
-      return text ? JSON.parse(text) : null;
-    }finally{
-      if(timer) clearTimeout(timer);
-    }
   }
 
   // estado visible arriba, en el encabezado (como en Gastos Familiares)
@@ -1983,12 +2065,12 @@
       //    que una cotizacion borrada no reaparezca al leer lo que hay en la nube.
       var pending = readIdList(PENDING_DEL_KEY);
       for(var i=0;i<pending.length;i++){
-        await cloudRequest("DELETE", "?id=eq." + Number(pending[i]), undefined, "return=minimal");
+        await cloudRequest(CLOUD_TABLE, "DELETE", "?id=eq." + Number(pending[i]), undefined, "return=minimal");
       }
       writeIdList(PENDING_DEL_KEY, readIdList(PENDING_DEL_KEY).filter(function(id){ return pending.indexOf(id)<0; }));
 
       // 2) lo que hay en la nube
-      var rows = await cloudRequest("GET", "?select=id,name,date_label,total,data_json") || [];
+      var rows = await cloudRequest(CLOUD_TABLE, "GET", "?select=id,name,date_label,total,data_json") || [];
       var remoteIds = {}, remote = {};
       rows.forEach(function(r){
         var k = String(r.id);
@@ -2007,7 +2089,7 @@
         else toUpload.push(e);                          // nueva: solo existe en este dispositivo
       });
       for(var j=0;j<toUpload.length;j++){
-        await cloudRequest("POST", "?on_conflict=id", entryToCloud(toUpload[j]), "resolution=merge-duplicates,return=minimal");
+        await cloudRequest(CLOUD_TABLE, "POST", "?on_conflict=id", entryToCloud(toUpload[j]), "resolution=merge-duplicates,return=minimal");
         synced.push(String(toUpload[j].id));
       }
       Object.keys(remoteIds).forEach(function(k){ if(synced.indexOf(k)<0) synced.push(k); });
@@ -2081,7 +2163,6 @@
           history = history.filter(function(h){ return h.id!==entry.id; });
           persistHistoryLocal();
           renderHistory();
-          if(historyColRef){ historyColRef.doc(String(entry.id)).delete().catch(function(){}); }
           if(cloudEnabled()){
             var pend = readIdList(PENDING_DEL_KEY);
             pend.push(String(entry.id));
@@ -2111,7 +2192,6 @@
     history.push(entry);
     persistHistoryLocal();
     renderHistory();
-    if(historyColRef){ historyColRef.doc(String(entry.id)).set(entry).catch(function(){}); }
 
     var msg = 'Cotización "'+name+'" guardada. Puedes verla cuando quieras desde el Historial.';
     if(cloudEnabled()){
@@ -2143,34 +2223,6 @@
     renderAll();
     alert('Cotización "'+entry.name+'" cargada.');
   }
-
-  (async function initHistorySync(){
-    if(!dbApi){
-      // "db" puede no estar listo todavia (initCloudSync corre en paralelo);
-      // reintenta brevemente antes de resignarse a trabajar solo con localStorage.
-      for(var i=0;i<20 && !dbApi;i++){ await new Promise(function(r){ setTimeout(r,150); }); }
-      if(!dbApi) return;
-    }
-    historyColRef = dbApi.collection("history");
-    try{
-      var snap = await historyColRef.get();
-      var fromCloud = snap.docs.map(function(d){ return d.data(); }).filter(function(e){ return e && e.id && e.data; });
-      if(fromCloud.length>0){
-        history = fromCloud;
-        persistHistoryLocal();
-        renderHistory();
-      }else if(history.length>0){
-        // habia cotizaciones solo en este dispositivo: subelas para que queden
-        // disponibles tambien desde otros dispositivos.
-        history.forEach(function(entry){ historyColRef.doc(String(entry.id)).set(entry).catch(function(){}); });
-      }
-    }catch(e){}
-    historyColRef.onSnapshot(function(snap){
-      history = snap.docs.map(function(d){ return d.data(); }).filter(function(e){ return e && e.id && e.data; });
-      persistHistoryLocal();
-      renderHistory();
-    }, function(){ /* error terminal: sigue funcionando solo con localStorage */ });
-  })();
 
   function renderAll(){
     refreshEventoFields();
