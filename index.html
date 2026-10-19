@@ -2264,7 +2264,13 @@
   var FOLDER_EDIT_KEY = "asalitrosLocalEditAt_v1";
   var folderSupported = typeof window.showDirectoryPicker === "function";
   var folderDir = null, folderBusy = false, folderAgain = false, folderTimer = null, folderApplying = false;
-  var folderStatus = "apagado", folderLastTime = "";
+  var folderStatus = "apagado", folderLastTime = "", folderLastSaved = "";
+  function folderHora(iso){
+    var d = new Date(iso); if(isNaN(d.getTime())) return "";
+    var hhmm = ("0"+d.getHours()).slice(-2) + ":" + ("0"+d.getMinutes()).slice(-2);
+    if(d.toDateString() === new Date().toDateString()) return hhmm;
+    return ("0"+d.getDate()).slice(-2) + "-" + ("0"+(d.getMonth()+1)).slice(-2) + " " + hhmm;
+  }
 
   function folderIdb(){
     return new Promise(function(resolve, reject){
@@ -2319,11 +2325,11 @@
     if(!folderSupported){ el.hidden = true; return; }
     el.hidden = false;
     var textos = {
-      apagado: ["sync-badge", "📁 Toca para guardar en tu carpeta de OneDrive"],
-      sin_permiso: ["sync-badge bad", "📁 Toca para dar permiso a la carpeta de OneDrive"],
-      guardando: ["sync-badge", "📁 Guardando en OneDrive…"],
-      ok: ["sync-badge ok", "📁 Guardado en OneDrive a las " + folderLastTime],
-      error: ["sync-badge bad", "📁 No se pudo usar la carpeta: toca para reintentar"]
+      apagado: ["sync-badge", "☁ OneDrive sin conectar — toca aquí para elegir la carpeta Asalitros"],
+      sin_permiso: ["sync-badge bad", "☁ OneDrive: toca aquí para dar permiso a la carpeta"],
+      guardando: ["sync-badge", "☁ Guardando en OneDrive…"],
+      ok: ["sync-badge ok", "☁ OneDrive al día — revisado " + folderLastTime + (folderLastSaved ? " · último guardado " + folderLastSaved : "")],
+      error: ["sync-badge bad", "☁ OneDrive con problema — toca para reintentar"]
     };
     var t = textos[folderStatus] || textos.apagado;
     el.className = t[0]; el.textContent = t[1];
@@ -2373,10 +2379,14 @@
       var fileSame = file && JSON.stringify(file.borrador) === JSON.stringify(data) && JSON.stringify(file.historial) === JSON.stringify(history) &&
         JSON.stringify((file.borrados || []).map(String).sort()) === JSON.stringify(borrados.slice().sort());
       var version = file ? file.version : 0;
+      var guardado = file ? { en: file.guardadoEl, equipo: file.equipo } : null;
       if(!fileSame){
         version = version + 1;
-        await folderWriteFile(folderDir, { app:"asalitros", version:version, guardadoEl:new Date().toISOString(), equipo:deviceId, borrador:data, historial:history, borrados:borrados });
+        var ahoraIso = new Date().toISOString();
+        await folderWriteFile(folderDir, { app:"asalitros", version:version, guardadoEl:ahoraIso, equipo:deviceId, borrador:data, historial:history, borrados:borrados });
+        guardado = { en: ahoraIso, equipo: deviceId };
       }
+      folderLastSaved = guardado && guardado.en ? folderHora(guardado.en) + (guardado.equipo === deviceId ? " (este equipo)" : " (otro equipo)") : "";
       localStorage.setItem(FOLDER_VERSION_KEY, String(version));
       localStorage.setItem(FOLDER_DRAFT_KEY, JSON.stringify(data));
       writeIdList(FOLDER_SYNCED_KEY, history.map(function(e){ return String(e.id); }));
