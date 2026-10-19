@@ -653,8 +653,9 @@
   // (aqui abajo) como el Historial (mas abajo en el archivo) las usan. La
   // clave "sb_publishable" es publica por diseno: solo puede hacer lo que
   // permiten las politicas de cada tabla, no es un secreto.
-  var CLOUD_URL = "https://vwhkpcuckvkxjltotmna.supabase.co";   // URL del proyecto Supabase (https://xxxx.supabase.co); vacia = sincronizacion apagada
-  var CLOUD_KEY = "sb_publishable_iVD0jVoT2Kh66m3D6fseSg_6vaXZ5PA";   // clave publica del proyecto (sb_publishable_...)
+  // Supabase RETIRADO el 19-10-2026 (costos): ahora se guarda en una carpeta de OneDrive (ver mas abajo).
+  var CLOUD_URL = "";   // URL del proyecto Supabase (https://xxxx.supabase.co); vacia = sincronizacion apagada
+  var CLOUD_KEY = "";   // clave publica del proyecto (sb_publishable_...)
   function cloudEnabled(){ return !!CLOUD_URL; }
 
   async function cloudRequest(table, method, query, body, prefer){
@@ -750,6 +751,7 @@
   function saveData(){
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){}
     scheduleLiveSave();
+    folderSaveSoon();
   }
 
   // revision periodica: aplica el cambio remoto solo si es mas nuevo que el
@@ -1990,6 +1992,7 @@
   var history = loadHistory();
   function persistHistoryLocal(){
     try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }catch(e){}
+    folderSaveSoon();
   }
 
   // ---------- sincronizacion del historial entre dispositivos ----------
@@ -2244,6 +2247,185 @@
   document.addEventListener("visibilitychange", function(){
     if(document.visibilityState === "visible") cloudSyncSoon();
   });
+
+  // ---------- carpeta de OneDrive (reemplaza a Supabase desde el 19-10-2026) ----------
+  // Como el programa de Todo Reparo y Gastos Familiares: los datos se guardan en un archivo
+  // dentro de una carpeta de OneDrive que se elige una vez (Chrome o Edge del computador).
+  // Desde otro computador se elige la misma carpeta y se sigue donde se quedó. No es para
+  // usar dos equipos al mismo tiempo:
+  //   - el asado actual (borrador): gana el cambio más reciente;
+  //   - el historial: se juntan las cotizaciones de ambos lados (por id) y se respetan los
+  //     borrados (lista "borrados"), para que una cotización eliminada no reaparezca.
+  // Se guarda además un respaldo por día en "respaldos/" (los últimos 14).
+  var FOLDER_FILE = "asalitros_datos.json";
+  var FOLDER_VERSION_KEY = "asalitrosFolderVersion_v1";
+  var FOLDER_SYNCED_KEY = "asalitrosFolderSyncedIds_v1";
+  var FOLDER_DRAFT_KEY = "asalitrosFolderDraft_v1";
+  var FOLDER_EDIT_KEY = "asalitrosLocalEditAt_v1";
+  var folderSupported = typeof window.showDirectoryPicker === "function";
+  var folderDir = null, folderBusy = false, folderAgain = false, folderTimer = null, folderApplying = false;
+  var folderStatus = "apagado", folderLastTime = "";
+
+  function folderIdb(){
+    return new Promise(function(resolve, reject){
+      var req = indexedDB.open("asalitros-carpeta", 1);
+      req.onupgradeneeded = function(){ req.result.createObjectStore("handles"); };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  }
+  async function folderRemember(dir){
+    try{
+      var db = await folderIdb();
+      await new Promise(function(res){ var tx = db.transaction("handles", "readwrite"); tx.objectStore("handles").put(dir, "onedrive"); tx.oncomplete = res; tx.onerror = res; });
+    }catch(e){}
+  }
+  async function folderRemembered(){
+    try{
+      var db = await folderIdb();
+      return await new Promise(function(res){ var r = db.transaction("handles").objectStore("handles").get("onedrive"); r.onsuccess = function(){ res(r.result || null); }; r.onerror = function(){ res(null); }; });
+    }catch(e){ return null; }
+  }
+  async function folderPermission(dir, ask){
+    if((await dir.queryPermission({mode:"readwrite"})) === "granted") return true;
+    if(!ask) return false;
+    return (await dir.requestPermission({mode:"readwrite"})) === "granted";
+  }
+  async function folderReadFile(dir){
+    var fh;
+    try{ fh = await dir.getFileHandle(FOLDER_FILE); }catch(e){ return null; }
+    var parsed = JSON.parse(await (await fh.getFile()).text());
+    if(!parsed || parsed.app !== "asalitros" || typeof parsed.version !== "number") throw new Error("el archivo de la carpeta no es de Asalitros");
+    return parsed;
+  }
+  async function folderWriteText(dir, name, text){
+    var fh = await dir.getFileHandle(name, {create:true});
+    var w = await fh.createWritable(); await w.write(text); await w.close();
+  }
+  async function folderWriteFile(dir, file){
+    var text = JSON.stringify(file);
+    await folderWriteText(dir, FOLDER_FILE, text);
+    var d = new Date(), hoy = d.getFullYear() + "-" + ("0"+(d.getMonth()+1)).slice(-2) + "-" + ("0"+d.getDate()).slice(-2);
+    var resp = await dir.getDirectoryHandle("respaldos", {create:true});
+    await folderWriteText(resp, "asalitros_" + hoy + ".json", text);
+    var names = [];
+    for await (var entry of resp.values()){ if(entry.kind === "file" && /^asalitros_\d{4}-\d{2}-\d{2}\.json$/.test(entry.name)) names.push(entry.name); }
+    names.sort().reverse().slice(14).forEach(function(n){ resp.removeEntry(n); });
+  }
+
+  function renderFolderStatus(){
+    var el = document.getElementById("syncBadge");
+    if(!el) return;
+    if(!folderSupported){ el.hidden = true; return; }
+    el.hidden = false;
+    var textos = {
+      apagado: ["sync-badge", "📁 Toca para guardar en tu carpeta de OneDrive"],
+      sin_permiso: ["sync-badge bad", "📁 Toca para dar permiso a la carpeta de OneDrive"],
+      guardando: ["sync-badge", "📁 Guardando en OneDrive…"],
+      ok: ["sync-badge ok", "📁 Guardado en OneDrive a las " + folderLastTime],
+      error: ["sync-badge bad", "📁 No se pudo usar la carpeta: toca para reintentar"]
+    };
+    var t = textos[folderStatus] || textos.apagado;
+    el.className = t[0]; el.textContent = t[1];
+  }
+
+  async function folderSyncNow(){
+    if(!folderSupported) return;
+    if(folderBusy){ folderAgain = true; return; }
+    folderBusy = true;
+    try{
+      if(!folderDir) folderDir = await folderRemembered();
+      if(!folderDir){ folderStatus = "apagado"; return; }
+      if(!(await folderPermission(folderDir, false))){ folderStatus = "sin_permiso"; return; }
+      folderStatus = "guardando"; renderFolderStatus();
+      var file = await folderReadFile(folderDir);
+      var lastVersion = Number(localStorage.getItem(FOLDER_VERSION_KEY) || "0");
+      var lastDraft = localStorage.getItem(FOLDER_DRAFT_KEY);
+      var synced = readIdList(FOLDER_SYNCED_KEY);
+      var localDraft = JSON.stringify(data);
+      var draftChanged = lastDraft !== null && lastDraft !== localDraft;
+
+      // borrados: los que este equipo ya había sincronizado y ya no tiene, más los de la carpeta
+      var currentIds = history.map(function(e){ return String(e.id); });
+      var borrados = (file && Array.isArray(file.borrados) ? file.borrados.map(String) : []);
+      synced.forEach(function(k){ if(currentIds.indexOf(k) < 0 && borrados.indexOf(k) < 0) borrados.push(k); });
+
+      // historial: unión por id (gana la de este equipo si existe en ambos), sin los borrados
+      var merged = {}, order = [];
+      (file && Array.isArray(file.historial) ? file.historial : []).forEach(function(e){ var k = String(e.id); if(!merged[k]){ order.push(k); } merged[k] = e; });
+      history.forEach(function(e){ var k = String(e.id); if(!merged[k]) order.push(k); merged[k] = e; });
+      var newHistory = order.filter(function(k){ return borrados.indexOf(k) < 0; }).map(function(k){ return merged[k]; });
+
+      // asado actual: si la carpeta cambió desde otro equipo, se usa el más reciente
+      var newData = data;
+      if(file && file.version !== lastVersion && isRemoteStateValid(file.borrador)){
+        var localEditAt = localStorage.getItem(FOLDER_EDIT_KEY) || "";
+        if(!draftChanged || (file.guardadoEl || "") > localEditAt) newData = file.borrador;
+      }
+
+      var historyChanged = JSON.stringify(newHistory) !== JSON.stringify(history);
+      var dataChanged = JSON.stringify(newData) !== localDraft;
+      folderApplying = true;
+      if(dataChanged){ data = newData; try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){} renderAll(); }
+      if(historyChanged){ history = newHistory; persistHistoryLocal(); renderHistory(); }
+      folderApplying = false;
+
+      var fileSame = file && JSON.stringify(file.borrador) === JSON.stringify(data) && JSON.stringify(file.historial) === JSON.stringify(history) &&
+        JSON.stringify((file.borrados || []).map(String).sort()) === JSON.stringify(borrados.slice().sort());
+      var version = file ? file.version : 0;
+      if(!fileSame){
+        version = version + 1;
+        await folderWriteFile(folderDir, { app:"asalitros", version:version, guardadoEl:new Date().toISOString(), equipo:deviceId, borrador:data, historial:history, borrados:borrados });
+      }
+      localStorage.setItem(FOLDER_VERSION_KEY, String(version));
+      localStorage.setItem(FOLDER_DRAFT_KEY, JSON.stringify(data));
+      writeIdList(FOLDER_SYNCED_KEY, history.map(function(e){ return String(e.id); }));
+      var d = new Date();
+      folderLastTime = ("0"+d.getHours()).slice(-2) + ":" + ("0"+d.getMinutes()).slice(-2);
+      folderStatus = "ok";
+      if(dataChanged || historyChanged) showToast("Se trajeron los cambios guardados en OneDrive desde otro equipo.");
+    }catch(e){
+      folderApplying = false;
+      folderStatus = "error";
+      try{ console.warn(e); }catch(err){}
+    }finally{
+      folderBusy = false;
+      renderFolderStatus();
+      if(folderAgain){ folderAgain = false; folderSyncNow(); }
+    }
+  }
+
+  function folderSaveSoon(){
+    if(!folderSupported || folderApplying) return;
+    try{ localStorage.setItem(FOLDER_EDIT_KEY, new Date().toISOString()); }catch(e){}
+    if(folderTimer) clearTimeout(folderTimer);
+    folderTimer = setTimeout(function(){ folderTimer = null; folderSyncNow(); }, 2000);
+  }
+
+  async function folderChoose(){
+    try{
+      var dir = await window.showDirectoryPicker({ id:"asalitros-onedrive", mode:"readwrite", startIn:"documents" });
+      if(!(await folderPermission(dir, true))) return;
+      folderDir = dir;
+      await folderRemember(dir);
+      await folderSyncNow();
+      if(folderStatus === "ok") alert('Listo: Asalitros guarda ahora en la carpeta "' + dir.name + '" de OneDrive. En otro computador, toca el mismo aviso y elige esa carpeta.');
+    }catch(e){ /* la persona cerró la ventana sin elegir */ }
+  }
+
+  if(folderSupported){
+    var badge = document.getElementById("syncBadge");
+    badge.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); badge.click(); } });
+    badge.addEventListener("click", function(){
+      if(folderStatus === "apagado" || !folderDir && folderStatus !== "sin_permiso") folderChoose();
+      else if(folderStatus === "sin_permiso"){ folderPermission(folderDir, true).then(function(ok){ if(ok) folderSyncNow(); }); }
+      else folderSyncNow();
+    });
+    document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "visible") folderSyncNow(); });
+    renderFolderStatus();
+    folderSyncNow();
+  }
+
   cloudSync();
 })();
 </script>
