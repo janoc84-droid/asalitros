@@ -2261,7 +2261,6 @@
   var FOLDER_VERSION_KEY = "asalitrosFolderVersion_v1";
   var FOLDER_SYNCED_KEY = "asalitrosFolderSyncedIds_v1";
   var FOLDER_DRAFT_KEY = "asalitrosFolderDraft_v1";
-  var FOLDER_EDIT_KEY = "asalitrosLocalEditAt_v1";
   var folderSupported = typeof window.showDirectoryPicker === "function";
   var folderDir = null, folderBusy = false, folderAgain = false, folderTimer = null, folderApplying = false;
   var folderStatus = "apagado", folderLastTime = "", folderLastSaved = "";
@@ -2362,11 +2361,26 @@
       history.forEach(function(e){ var k = String(e.id); if(!merged[k]) order.push(k); merged[k] = e; });
       var newHistory = order.filter(function(k){ return borrados.indexOf(k) < 0; }).map(function(k){ return merged[k]; });
 
-      // asado actual: si la carpeta cambió desde otro equipo, se usa el más reciente
+      // asado actual: si la carpeta cambió desde otro equipo, se usa el más reciente.
+      // Si este equipo NO tiene cambios propios sin subir (!draftChanged), siempre es
+      // seguro tomar lo de la carpeta. Pero si este equipo SI tiene cambios propios sin
+      // subir y ademas la carpeta trae algo distinto (otro equipo escribio mientras
+      // tanto), no hay forma de saber cual de los dos "gana" por fecha sin arriesgarse a
+      // perder trabajo en silencio -antes se decidia solo por la hora, y eso podia
+      // sobreescribir sin avisar un asado recien creado en otro equipo. Ahora se pregunta.
       var newData = data;
       if(file && file.version !== lastVersion && isRemoteStateValid(file.borrador)){
-        var localEditAt = localStorage.getItem(FOLDER_EDIT_KEY) || "";
-        if(!draftChanged || (file.guardadoEl || "") > localEditAt) newData = file.borrador;
+        var remoteDistinto = JSON.stringify(file.borrador) !== localDraft;
+        if(!draftChanged){
+          newData = file.borrador;
+        }else if(remoteDistinto){
+          var usarNube = confirm(
+            "Hay una versión distinta guardada en OneDrive desde otro equipo, y en este equipo hay cambios todavía sin subir.\n\n" +
+            "Aceptar: usar la versión de OneDrive (lo que cambiaste aquí sin subir se pierde).\n" +
+            "Cancelar: quedarte con lo de este equipo (se sube y reemplaza lo de OneDrive)."
+          );
+          if(usarNube) newData = file.borrador;
+        }
       }
 
       var historyChanged = JSON.stringify(newHistory) !== JSON.stringify(history);
@@ -2407,7 +2421,6 @@
 
   function folderSaveSoon(){
     if(!folderSupported || folderApplying) return;
-    try{ localStorage.setItem(FOLDER_EDIT_KEY, new Date().toISOString()); }catch(e){}
     if(folderTimer) clearTimeout(folderTimer);
     folderTimer = setTimeout(function(){ folderTimer = null; folderSyncNow(); }, 2000);
   }
