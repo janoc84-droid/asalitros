@@ -518,6 +518,11 @@
     <p class="sec-hint">Guarda esta cotización para poder verla después, sin perder lo que tengas mientras armas la siguiente.</p>
     <button class="add-btn" id="saveHistoryBtn" type="button">💾 Guardar esta cotización</button>
     <div id="historyList" style="margin-top:14px;"></div>
+
+    <p class="sec-hint" style="margin-top:18px;">Para traspasar datos a mano (por ejemplo, desde la APK de la tablet, que no se sincroniza sola): exporta un archivo aquí o importa uno que te hayan mandado.</p>
+    <button class="add-btn" id="exportDataBtn" type="button">📤 Exportar datos</button>
+    <button class="add-btn" id="importDataBtn" type="button" style="margin-top:10px;">📥 Importar datos (desde un archivo recibido)</button>
+    <input type="file" id="importDataInput" accept="application/json,.json" hidden>
   </section>
 
   <footer>
@@ -1745,15 +1750,15 @@
     return v ? v.trim() : "#ffffff";
   }
 
-  // entrega la imagen ya generada en un navegador normal (GitHub Pages).
-  // En celular abre el menu de compartir (WhatsApp, etc.), igual que la APK;
-  // en computador descarga el PNG directo. window.open() no sirve aca: para
-  // cuando termina de generarse la imagen el navegador ya no considera que
-  // hubo un clic del usuario y bloquea la ventana emergente.
-  async function deliverImageBlob(blob, opts){
+  // entrega un archivo ya generado (imagen o datos) en un navegador normal
+  // (GitHub Pages). En celular abre el menu de compartir (WhatsApp, etc.),
+  // igual que la APK; en computador lo descarga directo. window.open() no
+  // sirve aca: para cuando termina de generarse el archivo el navegador ya
+  // no considera que hubo un clic del usuario y bloquea la ventana emergente.
+  async function deliverBlob(blob, opts){
     var isTouch = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
     if(isTouch && navigator.canShare && typeof File === "function"){
-      var file = new File([blob], opts.fileName, {type:"image/png"});
+      var file = new File([blob], opts.fileName, {type: blob.type || "application/octet-stream"});
       if(navigator.canShare({files:[file]})){
         try{
           await navigator.share({files:[file], title:opts.title, text:opts.text});
@@ -1794,7 +1799,7 @@
         await downloads.save({ filename: opts.fileName, data: blob });
         alert('Imagen guardada. Ábrela desde tus descargas para enviarla por WhatsApp o donde quieras.');
       } else {
-        await deliverImageBlob(blob, opts);
+        await deliverBlob(blob, opts);
       }
     }catch(err){
       if(!(err && String(err.message||err).toLowerCase().indexOf("cancel")>=0) &&
@@ -2227,6 +2232,82 @@
         : 'Cotización "'+name+'" guardada en este dispositivo. No hay conexión con la nube: se subirá sola cuando vuelva internet.';
     }
     alert(msg);
+  });
+
+  // ---------- exportar / importar datos a mano (p.ej. para traer un archivo
+  // que la APK exporto, ya que la APK no se sincroniza sola con esta web) ----------
+  // El archivo usa la misma forma que "asalitros_datos.json" (la carpeta de
+  // OneDrive), para que tambien se pueda usar para reemplazar ese archivo a mano.
+  var exportDataBtn = document.getElementById("exportDataBtn");
+  exportDataBtn.addEventListener("click", function(){
+    runWithButtonBusy(exportDataBtn, "Preparando archivo…", async function(){
+      var payload = {
+        app: "asalitros",
+        version: 1,
+        guardadoEl: new Date().toISOString(),
+        equipo: "web (exportado a mano)",
+        borrador: data,
+        historial: history,
+        borrados: []
+      };
+      var text = JSON.stringify(payload, null, 2);
+      var fileName = "asalitros_datos_" + new Date().toISOString().slice(0,10) + ".json";
+      var blob = new Blob([text], {type: "application/json"});
+      try{
+        await deliverBlob(blob, { fileName: fileName, title: "Datos de Asalitros", text: "Cotización y datos de Asalitros (" + new Date().toLocaleDateString("es-CL") + ")" });
+      }catch(err){
+        if(!(err && String(err.message||err).toLowerCase().indexOf("cancel")>=0)){
+          alert("No se pudo exportar: " + (err && err.message ? err.message : err));
+        }
+      }
+    });
+  });
+
+  var importDataBtn = document.getElementById("importDataBtn");
+  var importDataInput = document.getElementById("importDataInput");
+  importDataBtn.addEventListener("click", function(){ importDataInput.click(); });
+  importDataInput.addEventListener("change", function(){
+    var file = importDataInput.files && importDataInput.files[0];
+    importDataInput.value = ""; // para poder elegir el mismo archivo otra vez si hace falta
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      var parsed;
+      try{ parsed = JSON.parse(reader.result); }catch(e){
+        alert("Ese archivo no es un archivo de datos de Asalitros válido.");
+        return;
+      }
+      if(!parsed || parsed.app !== "asalitros" || !isRemoteStateValid(parsed.borrador)){
+        alert("Ese archivo no es un archivo de datos de Asalitros válido.");
+        return;
+      }
+
+      // historial: se fusiona por id, nunca se pierde lo que ya tenias aqui.
+      var incoming = Array.isArray(parsed.historial) ? parsed.historial : [];
+      var have = {};
+      history.forEach(function(h){ have[String(h.id)] = true; });
+      var nuevas = 0;
+      incoming.forEach(function(h){
+        if(h && h.id && !have[String(h.id)]){ history.push(h); have[String(h.id)] = true; nuevas++; }
+      });
+      if(nuevas>0){ persistHistoryLocal(); renderHistory(); }
+
+      var reemplazar = confirm(
+        'El archivo trae también una cotización actual (borrador).\n\n' +
+        (nuevas>0 ? nuevas + ' cotización(es) del Historial ya se agregaron.\n\n' : '') +
+        '¿Reemplazar la cotización que tienes ahora en pantalla por la del archivo? Si no has guardado lo que tienes ahora, se perderá.'
+      );
+      if(reemplazar){
+        data = Array.isArray(parsed.borrador.items) ? JSON.parse(JSON.stringify(parsed.borrador)) : migrateLegacyData(parsed.borrador);
+        saveData();
+        renderAll();
+      }
+      alert(
+        (reemplazar ? 'Cotización actual reemplazada por la del archivo. ' : 'Cotización actual sin cambios. ') +
+        (nuevas>0 ? nuevas + ' cotización(es) nuevas agregadas al Historial.' : 'No había cotizaciones nuevas para el Historial.')
+      );
+    };
+    reader.readAsText(file);
   });
 
   function loadHistoryEntry(id){
