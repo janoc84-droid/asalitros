@@ -384,6 +384,8 @@
     <div id="famRows"></div>
     <button class="add-btn" id="addFam" type="button">+ Agregar familia</button>
     <div class="totals-line" id="famTotals"></div>
+    <p class="sec-hint" style="margin:10px 0 0;">Si vas a reutilizar esta lista de familias para una cotización nueva, recuerda limpiar "Ya gastó": ese valor no se borra solo, y si queda de un asado anterior va a aparecer mezclado en "Pago por familia" sin relación con el total nuevo.</p>
+    <button class="reset-btn" id="clearGastoBtn" type="button">🧹 Limpiar "Ya gastó" de todas las familias</button>
   </section>
 
   <!-- 2. COMPRAS: carnes y todo lo demas juntos, son compras en general -->
@@ -1912,6 +1914,25 @@
       data = JSON.parse(JSON.stringify(defaultData));
       saveData();
       renderAll();
+    }
+  });
+
+  // limpia SOLO "Ya gastó" (deja familias, items, etc. intactos) -pensado para
+  // cuando se reutiliza el mismo borrador como plantilla de un asado nuevo, sin
+  // querer arrastrar cuanto habia puesto cada familia la vez anterior.
+  document.getElementById("clearGastoBtn").addEventListener("click", function(){
+    var conGasto = data.families.filter(function(f){ return (f.gastoPropio||0) > 0; }).length;
+    if(conGasto === 0){
+      alert('Ninguna familia tiene algo anotado en "Ya gastó" todavía.');
+      return;
+    }
+    if(confirm('Vas a borrar lo que ' + conGasto + (conGasto===1?' familia anotó':' familias anotaron') + ' en "Ya gastó". Las familias, los items y el resto de los datos quedan igual. Esto no se puede deshacer. ¿Continuar?')){
+      data.families.forEach(function(f){ f.gastoPropio = 0; });
+      saveData();
+      buildFamilias();
+      recomputeCompras();
+      renderResumen();
+      alert('Listo: se limpió "Ya gastó" en todas las familias.');
     }
   });
 
